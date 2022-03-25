@@ -1780,7 +1780,7 @@ void nvp_add_to_inode_mapping(struct NVNode *node, ino_t serialno)
 	if (serialno == 0)
 		return;
 
-	DEBUG("Cleanup: root 0x%x, height %u\n", root, height);
+	// DEBUG("Cleanup: root 0x%x, height %u\n", root, height);
 	mappingToBeAdded = &_nvp_ino_mapping[index];
 	if(mappingToBeAdded->serialno != 0 && mappingToBeAdded->serialno != serialno) {
 		// Replacing some mmap() in that global mmap() cache. So must munmap() all the mmap() ranges in that cache. 
@@ -1826,7 +1826,7 @@ int nvp_retrieve_inode_mapping(struct NVNode *node)
 	int index = node->serialno % OPEN_MAX;
 	int dirty_index, i;
 	
-	DEBUG("Cleanup: root 0x%x, height %u\n", root, height);
+	// DEBUG("Cleanup: root 0x%x, height %u\n", root, height);
 
 	/* 
 	 * Get the mapping from the global mmap() cache, based on the inode number of the node whose mapping it should
@@ -1878,7 +1878,7 @@ void nvp_reset_mappings(struct NVNode *node)
 {
 	int i, dirty_index;
 	
-	DEBUG("Cleanup: root 0x%x, height %u\n", root, height);
+	// DEBUG("Cleanup: root 0x%x, height %u\n", root, height);
 
 	if(node->root_dirty_num) {		
 		// Check if many mmap()s need to be memset. If total_dirty_mmaps is set, that means all the mmap()s need to be copied 
@@ -2746,8 +2746,8 @@ static int nvp_get_dr_mmap_address(struct NVFile *nvf, off_t offset,
 	DEBUG_FILE("%s: Start. offset = %lu, len_to_write = %lu, nvf->node->length = %lu, nvf->node->true_length = %lu\n",
 		   __func__, offset, len_to_write, nvf->node->length, nvf->node->true_length);
 
-	DEBUG("Get mmap address: offset 0x%lx, height %u\n",
-	      offset, height);
+	// DEBUG("Get mmap address: offset 0x%lx, height %u\n",
+	    //   offset, height);
 	/* The index of the mmap in the global DR pool.
 	 * Max number of entries = 1024. 
 	 */
@@ -3312,8 +3312,8 @@ RETT_PWRITE write_to_file_mmap(int file,
 		END_TIMING(read_tbl_mmap_t, read_tbl_mmap_time);
 		
 		DEBUG_FILE("%s: addr to read = %p, size to read = %lu. Inode = %lu\n", __func__, mmap_addr, extent_length, nvf->node->serialno);
-		DEBUG("Pread: get_mmap_address returned %d, length %llu\n",
-			ret, extent_length);
+		// DEBUG("Pread: get_mmap_address returned %d, length %llu\n",
+		// 	ret, extent_length);
 
 		if (mmap_addr == 0) {
 			extent_length = read_from_file_mmap(file,
@@ -3399,9 +3399,9 @@ RETT_PWRITE write_to_file_mmap(int file,
 	_nvp_wr_extended++;
 	num_memcpy_write++;
 	num_append_write++;
-	DEBUG("Request write length %li will extend file. "
-	      "(filelen=%li, offset=%li, count=%li, extension=%li)\n",
-	      count, nvf->node->length, offset, count, extension);
+	// DEBUG("Request write length %li will extend file. "
+	//       "(filelen=%li, offset=%li, count=%li, extension=%li)\n",
+	//       count, nvf->node->length, offset, count, extension);
 	len_to_write = count;
 	write_count = 0;
 	write_offset = offset;
@@ -7003,8 +7003,8 @@ int _nvp_posix_sync_file_range(INTF_SYNC_FILE_RANGE, struct NVFile *nvf) {
 				    1);
 		
 		DEBUG_FILE("%s: addr to read = %p, size to read = %lu. Inode = %lu\n", __func__, mmap_addr, extent_length, nvf->node->serialno);
-		DEBUG("Pread: get_mmap_address returned %d, length %llu\n",
-			ret, extent_length);
+		// DEBUG("Pread: get_mmap_address returned %d, length %llu\n",
+		// 	ret, extent_length);
 
 		// else do nothing
 		if (mmap_addr == 0) {
