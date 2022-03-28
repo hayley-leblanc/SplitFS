@@ -72,6 +72,10 @@ ENABLE_FALLOC=1
 
 UNMAP_ON_CLOSE=0
 
+# distributed compiler args
+CLIENT=0
+SERVER=0
+
 #MONETA_LIB_DIR=$(BEE3HOME)/Tools/BEE3/library/src$(MONETA_LIB_VERSION)/build/$(MONETA_LIB_BUILD)
 #SDSSD_LIB_DIR=${SDSSDHOME}/libs/sdssd/host/build/${SDSSD_LIB_BUILD}:${SDSSDHOME}/libs/io/host/build/${SDSSD_LIB_BUILD}
 NVP_LIB_DIR=$(BEE3HOME)/test/PosixNVM

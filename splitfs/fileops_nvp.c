@@ -1542,6 +1542,33 @@ void _nvp_init2(void)
 	else
 		execv_done = 0;
 
+	DEBUG("Setting up remote connections\n");
+	/*
+	 * Plan for single-server connection is as follows:
+	 * - establish TCP connection to single known server
+	 * - tear it down when the program is over
+	 * In the future, we will likely have to establish connections on demand
+	 * because we won't necessarily know where a file lives until we try 
+	 * to access it.
+	 */
+#ifdef CLIENT
+	struct addrinfo hints;
+	struct addrinfo *result, *rp;
+	int sock_fd;
+
+	memset(&hints, 0, sizeof(hints));
+	hints.ai_family = AF_INET; // use IPv4
+	hints.ai_socktype = SOCK_STREAM; // use TCP
+	hints.ai_flags = 0;
+	hints.ai_protocol = 0; // any protocol
+
+	// use getaddrinfo
+	// node argument specifies a numerical network address or a hostname
+	// service argument selects the port?
+#elif SERVER 
+
+#endif
+
 }
 
 void nvp_transfer_to_free_dr_pool(struct NVNode *node)
