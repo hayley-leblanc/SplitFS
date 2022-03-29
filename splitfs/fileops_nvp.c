@@ -13,6 +13,9 @@
 #include <unistd.h>
 #include <string.h>
 #include <cpuid.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netdb.h>
 
 #include "perfcount.h"
 
@@ -1551,22 +1554,120 @@ void _nvp_init2(void)
 	 * because we won't necessarily know where a file lives until we try 
 	 * to access it.
 	 */
-#ifdef CLIENT
 	struct addrinfo hints;
 	struct addrinfo *result, *rp;
 	int sock_fd;
+	char* server_port = "4444";
+	int error = 0;
+	int res;
+	int opt = 1;
+
+	int ip_protocol = AF_INET; // IPv4
+	int transport_protocol = SOCK_STREAM; // TCP
 
 	memset(&hints, 0, sizeof(hints));
-	hints.ai_family = AF_INET; // use IPv4
-	hints.ai_socktype = SOCK_STREAM; // use TCP
-	hints.ai_flags = 0;
+	hints.ai_family = ip_protocol; // use IPv4
+	hints.ai_socktype = transport_protocol; // use TCP
 	hints.ai_protocol = 0; // any protocol
+	
+#ifdef CLIENT
+	hints.ai_flags = 0;
 
-	// use getaddrinfo
-	// node argument specifies a numerical network address or a hostname
-	// service argument selects the port?
-#elif SERVER 
+	// TODO: get server IP (and port?) in some other way
+	// probably look them up from a configuration file
+	char* server_ip = "129.114.27.31";
+	
+	// getaddrinfo is a system call that, given an IP address, a port,
+	// and some additional info about the desired connection, 
+	// returns structure(s) that can be used to establish network 
+	// connections with another machine
+	res = getaddrinfo(server_ip, server_port, &hints, &result);
+	if (res != 0) {
+		perror("getaddrinfo client");
+		return res;
+	}
+	
+	for (rp = result; rp != NULL; rp = rp->ai_next) {
+		// socket() creates a network endpoint and returns a file descriptor
+		// that can be used to access that endpoint
+		sock_fd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
+		if (sock_fd < 0) {
+			continue;
+		}
+		// connect() system call connects a socket to an address
+		res = connect(sock_fd, rp->ai_addr, rp->ai_addrlen);
+		if (res != -1) {
+			// break if we successfully established a connection
+			break;
+		}
+		error = errno;
+		close(sock_fd);
+	}
 
+	freeaddrinfo(result);
+
+	// rp is NULL only if we were not able to establish a connection
+	if (rp == NULL) {
+		fprintf(stderr, "Could not connect: %s\n", strerr(error));
+		return error;
+	}
+
+	DEBUG("You are now connected to IP %s, port %s\n", server_ip, port);
+
+	// TODO: close the connection later when we won't use it anymore
+	close(sock_fd);
+
+#elseif SERVER 
+	struct sockaddr_un my_addr;
+	int addrlen = sizeof(my_addr);
+	int accept_socket;
+	
+	// set up a socket to listen for a connection request
+	// at some point, this will have to run in the background
+	// so that the server can do other work while also listening
+	// for new requests
+	sock_fd = socket(ip_protocol, transport_protocol, 0);
+	if (sock_fd < 0) {
+		perror("socket");
+		return sock_fd;
+	}
+
+	memset(&my_addr, 0, addrlen);
+	my_addr.sun_family = AF_INET;
+	my_addr.sun_addr.s_addr = INADDR_ANY;
+	my_addr.sun_port = htons(server_port);
+
+	// allow socket to be reused to avoid problems with binding in the future
+	res = setsockopt(sock_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+	if (res < 0) {
+		perror("setsockopt");
+		return res;
+	}
+
+	// bind the socket to the local address and port so we can accept connections on it
+	res = bind(sock_fd, (struct sockaddr*)&my_addr, addrlen);
+	if (res < 0) {
+		perror("bind");
+		return ret;
+	}
+
+	// wait for a client to connect. I think this will block?
+	res = listen(sock_fd, 2);
+	if (res < 0) {
+		perror("listen");
+		return ret;
+	}
+
+	accept_socket = accept(sock_fd, (struct sockaddr*)&my_addr, (socklen_t*)&addrlen);
+	if (accept_socket < 0) {
+		perror("accept");
+		return accept_socket;
+	}
+
+	// TODO: close these later when we won't need them anymore
+	close(sock_fd);
+	close(accept_socket);
+	
 #endif
 
 }
