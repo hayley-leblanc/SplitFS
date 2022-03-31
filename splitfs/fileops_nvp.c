@@ -1562,6 +1562,7 @@ void _nvp_init2(void)
 	int error = 0;
 	int res;
 	int opt = 1;
+	long flags = 0;
 
 	int ip_protocol = AF_INET; // IPv4
 	int transport_protocol = SOCK_STREAM; // TCP
@@ -1578,49 +1579,81 @@ void _nvp_init2(void)
 
 	// TODO: get server IP (and port?) in some other way
 	// probably look them up from a configuration file
-	char* server_ip = "129.114.27.31";
+	char* server_ip = "10.56.0.253";
 	
 	// getaddrinfo is a system call that, given an IP address, a port,
 	// and some additional info about the desired connection, 
 	// returns structure(s) that can be used to establish network 
 	// connections with another machine
+	DEBUG("calling get addr info\n");
 	res = getaddrinfo(server_ip, server_port, &hints, &result);
 	if (res != 0) {
 		DEBUG("getaddrinfo failed: %s\n", strerror(errno));
 		// return res;
 		assert(0);
 	}
+	DEBUG("get addr info done\n");
+
+	char addrstr[100];
+	inet_ntop(result->ai_family, &((struct sockaddr_in *) result->ai_addr)->sin_addr, addrstr, 100);
+	DEBUG("address: %s\n", addrstr);
 	
-	for (rp = result; rp != NULL; rp = rp->ai_next) {
+	// for (rp = result; rp != NULL; rp = rp->ai_next) {
+	// 	DEBUG("looping\n");
 		// socket() creates a network endpoint and returns a file descriptor
 		// that can be used to access that endpoint
-		sock_fd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
-		if (sock_fd < 0) {
-			continue;
-		}
-		// connect() system call connects a socket to an address
-		res = connect(sock_fd, rp->ai_addr, rp->ai_addrlen);
-		if (res != -1) {
-			// break if we successfully established a connection
-			break;
-		}
-		error = errno;
-		close(sock_fd);
+	DEBUG("grabbing socket\n");
+	sock_fd = socket(result->ai_family, result->ai_socktype, result->ai_protocol);
+	DEBUG("got socket\n");
+	if (sock_fd < 0) {
+		DEBUG("bad socket\n");
+		assert(0);
 	}
+	// DEBUG("setting socket flags\n");
+	// // set socket to nonblocking
+	// flags = fcntl(sock_fd, F_GETFL, NULL);
+	// if (flags < 0) {
+	// 	DEBUG("flags get\n");
+	// 	assert(0);
+	// }
+	// DEBUG("got socket flags\n");
+	// flags |= O_NONBLOCK;
+	// res = fcntl(sock_fd, F_SETFL, flags);
+	// if (res < 0) {
+	// 	DEBUG("flags set\n");
+	// 	assert(0);
+	// }
+	// DEBUG("set socket flags\n");
+
+	// connect() system call connects a socket to an address
+	DEBUG("connecting\n");
+	res = connect(sock_fd, result->ai_addr, result->ai_addrlen);
+	DEBUG("connect returned\n");
+	if (res != -1) {
+		DEBUG("connected\n");
+		// break if we successfully established a connection
+		// break;
+	} else {
+		DEBUG("unable to connect\n");
+		error = errno;
+		_hub_find_fileop("posix")->CLOSE(sock_fd);
+		DEBUG("closed socket\n");
+	}
+	// }
 
 	freeaddrinfo(result);
 
-	// rp is NULL only if we were not able to establish a connection
-	if (rp == NULL) {
-		DEBUG("could not connect: %s\n", strerror(error));
-		// return error;
-		assert(0);
-	}
+	// // rp is NULL only if we were not able to establish a connection
+	// if (rp == NULL) {
+	// 	DEBUG("could not connect: %s\n", strerror(error));
+	// 	// return error;
+	// 	assert(0);
+	// }
 
 	DEBUG("You are now connected to IP %s, port %s\n", server_ip, server_port);
 
 	// TODO: close the connection later when we won't use it anymore
-	close(sock_fd);
+	_hub_find_fileop("posix")->CLOSE(sock_fd);
 #elif SERVER 
 	struct sockaddr_in my_addr;
 	int addrlen = sizeof(my_addr);
@@ -1644,7 +1677,7 @@ void _nvp_init2(void)
 	memset(&my_addr, 0, addrlen);
 	my_addr.sin_family = AF_INET;
 	my_addr.sin_addr.s_addr = INADDR_ANY;
-	my_addr.sin_port = htons(server_port);
+	my_addr.sin_port = server_port;
 
 	DEBUG("setting socket options\n");
 
@@ -5233,35 +5266,35 @@ RETT_FCLOSE _nvp_FCLOSE(INTF_FCLOSE)
 }
 #endif
 
-// Currently handles only CLOEXEC
-RETT_FCNTL _nvp_FCNTL(INTF_FCNTL)
-{
-	CHECK_RESOLVE_FILEOPS(_nvp_);
+// // Currently handles only CLOEXEC
+// RETT_FCNTL _nvp_FCNTL(INTF_FCNTL)
+// {
+// 	CHECK_RESOLVE_FILEOPS(_nvp_);
 
-	DEBUG("CALL: _nvp_FCNTL\n");
+// 	DEBUG("CALL: _nvp_FCNTL\n");
 
-	struct NVFile* nvf = &_nvp_fd_lookup[file];
-	va_list ap;
-	void* arg;
+// 	struct NVFile* nvf = &_nvp_fd_lookup[file];
+// 	va_list ap;
+// 	void* arg;
 
-	va_start (ap, cmd);
-	arg = va_arg (ap, void*);
-	va_end (ap);
+// 	va_start (ap, cmd);
+// 	arg = va_arg (ap, void*);
+// 	va_end (ap);
 
-	if(nvf->posix || !nvf->valid) {
-		return _nvp_fileops->FCNTL(file, cmd, arg);
-	}
+// 	if(nvf->posix || !nvf->valid) {
+// 		return _nvp_fileops->FCNTL(file, cmd, arg);
+// 	}
 
-	if(cmd == F_SETFD && ((int)arg | FD_CLOEXEC) && !nvf->posix) {
-		nvf->cloexec = true;
-	} else {
-		nvf->cloexec = false;
-	}
+// 	if(cmd == F_SETFD && ((int)arg | FD_CLOEXEC) && !nvf->posix) {
+// 		nvf->cloexec = true;
+// 	} else {
+// 		nvf->cloexec = false;
+// 	}
 
-	RETT_FCNTL result = _nvp_fileops->FCNTL(file, cmd, arg);
+// 	RETT_FCNTL result = _nvp_fileops->FCNTL(file, cmd, arg);
 
-	return result;
-}
+// 	return result;
+// }
 
 
 #ifdef TRACE_FP_CALLS

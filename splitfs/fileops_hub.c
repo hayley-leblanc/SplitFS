@@ -282,8 +282,8 @@ RETT_FREAD_UNLOCKED _hub_FREAD_UNLOCKED(INTF_FREAD_UNLOCKED);
 RETT_IOCTL ALIAS_IOCTL(INTF_IOCTL) WEAK_ALIAS("_hub_IOCTL");
 RETT_IOCTL  _hub_IOCTL(INTF_IOCTL);
 
-RETT_FCNTL ALIAS_FCNTL(INTF_FCNTL) WEAK_ALIAS("_hub_FCNTL");
-RETT_FCNTL  _hub_FCNTL(INTF_FCNTL);
+// RETT_FCNTL ALIAS_FCNTL(INTF_FCNTL) WEAK_ALIAS("_hub_FCNTL");
+// RETT_FCNTL  _hub_FCNTL(INTF_FCNTL);
 
 RETT_OPEN64 ALIAS_OPEN64(INTF_OPEN64) WEAK_ALIAS("_hub_OPEN64");
 RETT_OPEN64  _hub_OPEN64(INTF_OPEN64);
@@ -1446,20 +1446,20 @@ RETT_UNLINK _hub_UNLINK(INTF_UNLINK)
 	return result;
 }
 
-RETT_FCNTL _hub_FCNTL(INTF_FCNTL)
-{
-	CHECK_RESOLVE_FILEOPS(_hub_);
+// RETT_FCNTL _hub_FCNTL(INTF_FCNTL)
+// {
+// 	CHECK_RESOLVE_FILEOPS(_hub_);
 
-	DEBUG("CALL: _hub_FCNTL\n");
+// 	DEBUG("CALL: _hub_FCNTL\n");
 
-	va_list ap;
-	void * arg;
-	va_start (ap, cmd);
-	arg = va_arg (ap, void*);
-	va_end (ap);
+// 	va_list ap;
+// 	void * arg;
+// 	va_start (ap, cmd);
+// 	arg = va_arg (ap, void*);
+// 	va_end (ap);
 
-	return _hub_managed_fileops->FCNTL(CALL_FCNTL, arg);
-}
+// 	return _hub_managed_fileops->FCNTL(CALL_FCNTL, arg);
+// }
 
 RETT_UNLINKAT _hub_UNLINKAT(INTF_UNLINKAT)
 {
