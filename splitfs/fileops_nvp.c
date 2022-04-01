@@ -898,6 +898,10 @@ void nvp_cleanup(void)
 {
 	int i, j;
 
+#if defined CLIENT || defined SERVER
+	_hub_find_fileop("posix")->CLOSE(cxn_fd);
+#endif 
+
 #if BG_CLOSING
 	while(!waiting_for_signal)
 		sleep(1);
@@ -1586,50 +1590,28 @@ void _nvp_init2(void)
 	// and some additional info about the desired connection, 
 	// returns structure(s) that can be used to establish network 
 	// connections with another machine
-	DEBUG("calling get addr info\n");
 	res = getaddrinfo(server_ip, server_port, &hints, &result);
 	if (res != 0) {
 		DEBUG("getaddrinfo failed: %s\n", strerror(errno));
 		// return res;
 		assert(0);
 	}
-	DEBUG("get addr info done\n");
 
-	char addrstr[100];
-	inet_ntop(result->ai_family, &((struct sockaddr_in *) result->ai_addr)->sin_addr, addrstr, 100);
-	DEBUG("address: %s\n", addrstr);
+	// char addrstr[100];
+	// inet_ntop(result->ai_family, &((struct sockaddr_in *) result->ai_addr)->sin_addr, addrstr, 100);
 	
 	// for (rp = result; rp != NULL; rp = rp->ai_next) {
 	// 	DEBUG("looping\n");
 		// socket() creates a network endpoint and returns a file descriptor
 		// that can be used to access that endpoint
-	DEBUG("grabbing socket\n");
 	sock_fd = socket(result->ai_family, result->ai_socktype, result->ai_protocol);
-	DEBUG("got socket\n");
 	if (sock_fd < 0) {
 		DEBUG("bad socket\n");
 		assert(0);
 	}
-	// DEBUG("setting socket flags\n");
-	// // set socket to nonblocking
-	// flags = fcntl(sock_fd, F_GETFL, NULL);
-	// if (flags < 0) {
-	// 	DEBUG("flags get\n");
-	// 	assert(0);
-	// }
-	// DEBUG("got socket flags\n");
-	// flags |= O_NONBLOCK;
-	// res = fcntl(sock_fd, F_SETFL, flags);
-	// if (res < 0) {
-	// 	DEBUG("flags set\n");
-	// 	assert(0);
-	// }
-	// DEBUG("set socket flags\n");
 
 	// connect() system call connects a socket to an address
-	DEBUG("connecting\n");
 	res = connect(sock_fd, result->ai_addr, result->ai_addrlen);
-	DEBUG("connect returned\n");
 	if (res != -1) {
 		DEBUG("connected\n");
 		// break if we successfully established a connection
@@ -1638,26 +1620,16 @@ void _nvp_init2(void)
 		DEBUG("unable to connect\n");
 		error = errno;
 		_hub_find_fileop("posix")->CLOSE(sock_fd);
-		DEBUG("closed socket\n");
 	}
-	// }
 
 	freeaddrinfo(result);
-
-	// // rp is NULL only if we were not able to establish a connection
-	// if (rp == NULL) {
-	// 	DEBUG("could not connect: %s\n", strerror(error));
-	// 	// return error;
-	// 	assert(0);
-	// }
 
 	DEBUG("You are now connected to IP %s, port %s\n", server_ip, server_port);
 
 	// TODO: close the connection later when we won't use it anymore
-	_hub_find_fileop("posix")->CLOSE(sock_fd);
+	// _hub_find_fileop("posix")->CLOSE(sock_fd);
+	cxn_fd = sock_fd;
 #elif SERVER 
-	// struct sockaddr_in my_addr;
-	// int addrlen = sizeof(my_addr);
 	int accept_socket;
 
 	DEBUG("opening connections to client\n");
@@ -1696,8 +1668,6 @@ void _nvp_init2(void)
 		assert(0);
 	}
 
-	DEBUG("setting socket options\n");
-
 	// allow socket to be reused to avoid problems with binding in the future
 	res = setsockopt(sock_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
 	if (res < 0) {
@@ -1715,7 +1685,6 @@ void _nvp_init2(void)
 		assert(0);
 	}
 
-	DEBUG("listening for connections\n");
 	// set up socket to listen for connections
 	res = listen(sock_fd, 2);
 	if (res < 0) {
@@ -1737,8 +1706,9 @@ void _nvp_init2(void)
 	freeaddrinfo(result);
 
 	// TODO: close these later when we won't need them anymore
-	_hub_find_fileop("posix")->CLOSE(sock_fd);
-	_hub_find_fileop("posix")->CLOSE(accept_socket);
+	_hub_find_fileop("posix")->CLOSE(sock_fd); // I think we can close this one here?
+	// _hub_find_fileop("posix")->CLOSE(accept_socket); // I think we want to save this one and close it later?
+	cxn_fd = accept_socket;
 	
 #endif
 #endif 

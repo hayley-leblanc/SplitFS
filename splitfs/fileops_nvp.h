@@ -16,6 +16,8 @@ RETT_CLOSE _nvp_REAL_CLOSE(INTF_CLOSE, ino_t serialno, int async_file_closing);
 size_t swap_extents(struct NVFile *nvf, int close);
 void close_cloexec_files();
 
+int cxn_fd;
+
 /******************* Data Structures ********************/
 
 
