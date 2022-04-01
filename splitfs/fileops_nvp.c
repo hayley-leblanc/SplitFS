@@ -899,6 +899,7 @@ void nvp_cleanup(void)
 	int i, j;
 
 #if defined CLIENT || defined SERVER
+	DEBUG("closing remote connection file descriptor %d\n", cxn_fd);
 	_hub_find_fileop("posix")->CLOSE(cxn_fd);
 #endif 
 
@@ -1593,17 +1594,11 @@ void _nvp_init2(void)
 	res = getaddrinfo(server_ip, server_port, &hints, &result);
 	if (res != 0) {
 		DEBUG("getaddrinfo failed: %s\n", strerror(errno));
-		// return res;
 		assert(0);
 	}
 
-	// char addrstr[100];
-	// inet_ntop(result->ai_family, &((struct sockaddr_in *) result->ai_addr)->sin_addr, addrstr, 100);
-	
-	// for (rp = result; rp != NULL; rp = rp->ai_next) {
-	// 	DEBUG("looping\n");
-		// socket() creates a network endpoint and returns a file descriptor
-		// that can be used to access that endpoint
+	// socket() creates a network endpoint and returns a file descriptor
+	// that can be used to access that endpoint
 	sock_fd = socket(result->ai_family, result->ai_socktype, result->ai_protocol);
 	if (sock_fd < 0) {
 		DEBUG("bad socket\n");
@@ -1613,9 +1608,7 @@ void _nvp_init2(void)
 	// connect() system call connects a socket to an address
 	res = connect(sock_fd, result->ai_addr, result->ai_addrlen);
 	if (res != -1) {
-		DEBUG("connected\n");
-		// break if we successfully established a connection
-		// break;
+		DEBUG("You are now connected to IP %s, port %s\n", server_ip, server_port);
 	} else {
 		DEBUG("unable to connect\n");
 		error = errno;
@@ -1623,9 +1616,6 @@ void _nvp_init2(void)
 	}
 
 	freeaddrinfo(result);
-
-	DEBUG("You are now connected to IP %s, port %s\n", server_ip, server_port);
-
 	// TODO: close the connection later when we won't use it anymore
 	// _hub_find_fileop("posix")->CLOSE(sock_fd);
 	cxn_fd = sock_fd;
