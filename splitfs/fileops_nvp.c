@@ -1545,6 +1545,7 @@ void _nvp_init2(void)
 	else
 		execv_done = 0;
 
+#if CLIENT || SERVER 
 	DEBUG("Setting up remote connections\n");
 	/*
 	 * Plan for single-server connection is as follows:
@@ -1570,8 +1571,10 @@ void _nvp_init2(void)
 	hints.ai_socktype = transport_protocol; // use TCP
 	hints.ai_protocol = 0; // any protocol
 	
-#ifdef CLIENT
+#if CLIENT
 	hints.ai_flags = 0;
+
+	DEBUG("connecting to server\n");
 
 	// TODO: get server IP (and port?) in some other way
 	// probably look them up from a configuration file
@@ -1583,8 +1586,9 @@ void _nvp_init2(void)
 	// connections with another machine
 	res = getaddrinfo(server_ip, server_port, &hints, &result);
 	if (res != 0) {
-		perror("getaddrinfo client");
-		return res;
+		DEBUG("getaddrinfo failed: %s\n", strerror(errno));
+		// return res;
+		assert(0);
 	}
 	
 	for (rp = result; rp != NULL; rp = rp->ai_next) {
@@ -1608,67 +1612,84 @@ void _nvp_init2(void)
 
 	// rp is NULL only if we were not able to establish a connection
 	if (rp == NULL) {
-		fprintf(stderr, "Could not connect: %s\n", strerr(error));
-		return error;
+		DEBUG("could not connect: %s\n", strerror(error));
+		// return error;
+		assert(0);
 	}
 
-	DEBUG("You are now connected to IP %s, port %s\n", server_ip, port);
+	DEBUG("You are now connected to IP %s, port %s\n", server_ip, server_port);
 
 	// TODO: close the connection later when we won't use it anymore
 	close(sock_fd);
-
-#elseif SERVER 
-	struct sockaddr_un my_addr;
+#elif SERVER 
+	struct sockaddr_in my_addr;
 	int addrlen = sizeof(my_addr);
 	int accept_socket;
+
+	DEBUG("opening connections to client\n");
 	
 	// set up a socket to listen for a connection request
 	// at some point, this will have to run in the background
 	// so that the server can do other work while also listening
 	// for new requests
 	sock_fd = socket(ip_protocol, transport_protocol, 0);
-	if (sock_fd < 0) {
-		perror("socket");
-		return sock_fd;
-	}
+	DEBUG("hello???\n");
+	// if (sock_fd < 0) {
+	// 	DEBUG("socket failed: %s\n", strerror(errno));
+	// 	// return sock_fd;
+	// 	assert(0);
+	// }
 
-	memset(&my_addr, 0, addrlen);
-	my_addr.sun_family = AF_INET;
-	my_addr.sun_addr.s_addr = INADDR_ANY;
-	my_addr.sun_port = htons(server_port);
+	// DEBUG("got socket %d\n", sock_fd);
 
-	// allow socket to be reused to avoid problems with binding in the future
-	res = setsockopt(sock_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
-	if (res < 0) {
-		perror("setsockopt");
-		return res;
-	}
+	// memset(&my_addr, 0, addrlen);
+	// my_addr.sin_family = AF_INET;
+	// my_addr.sin_addr.s_addr = INADDR_ANY;
+	// my_addr.sin_port = htons(server_port);
 
-	// bind the socket to the local address and port so we can accept connections on it
-	res = bind(sock_fd, (struct sockaddr*)&my_addr, addrlen);
-	if (res < 0) {
-		perror("bind");
-		return ret;
-	}
+	// DEBUG("setting socket options\n");
 
-	// wait for a client to connect. I think this will block?
-	res = listen(sock_fd, 2);
-	if (res < 0) {
-		perror("listen");
-		return ret;
-	}
+	// // allow socket to be reused to avoid problems with binding in the future
+	// res = setsockopt(sock_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+	// if (res < 0) {
+	// 	DEBUG("setsockopt failed: %s\n", strerror(errno));
+	// 	// return res;
+	// 	assert(0);
+	// }
 
-	accept_socket = accept(sock_fd, (struct sockaddr*)&my_addr, (socklen_t*)&addrlen);
-	if (accept_socket < 0) {
-		perror("accept");
-		return accept_socket;
-	}
+	// // bind the socket to the local address and port so we can accept connections on it
+	// res = bind(sock_fd, (struct sockaddr*)&my_addr, addrlen);
+	// if (res < 0) {
+	// 	DEBUG("bind failed: %s\n", strerror(errno));
+	// 	// return ret;
+	// 	assert(0);
+	// }
 
-	// TODO: close these later when we won't need them anymore
-	close(sock_fd);
-	close(accept_socket);
+	// DEBUG("listening for connections\n");
+	// // set up socket to listen for connections
+	// res = listen(sock_fd, 2);
+	// if (res < 0) {
+	// 	// perror("listen");
+	// 	DEBUG("listen failed: %s\n", strerror(errno));
+	// 	// return ret;
+	// 	assert(0);
+	// }
+
+	// // wait for someone to connect and accept when they do
+	// DEBUG("waiting for connections\n");
+	// accept_socket = accept(sock_fd, (struct sockaddr*)&my_addr, (socklen_t*)&addrlen);
+	// if (accept_socket < 0) {
+	// 	DEBUG("accept failed: %s\n", strerror(errno));
+	// 	// return accept_socket;
+	// 	assert(0);
+	// }
+
+	// // TODO: close these later when we won't need them anymore
+	// close(sock_fd);
+	// close(accept_socket);
 	
 #endif
+#endif 
 
 }
 
