@@ -413,15 +413,15 @@ int hub_check_resolve_fileops(char* tree)
 		return result;				\
 	}
 
-#define HUB_WRAP_SOCKET()						\
-	RETT_SOCKETPAIR _hub_SOCKETPAIR(INTF_SOCKETPAIR) {		\
-		int result = 0;						\
-		HUB_CHECK_RESOLVE_FILEOPS(_hub_, op);			\
-		result = _hub_fileops->SOCKETPAIR(CALL_SOCKETPAIR);	\
-		_hub_fd_lookup[sv[0]] = _hub_fileops;			\
-		_hub_fd_lookup[sv[1]] = _hub_fileops;			\
-		return result;						\
-	}
+// #define HUB_WRAP_SOCKET()						\
+// 	RETT_SOCKETPAIR _hub_SOCKETPAIR(INTF_SOCKETPAIR) {		\
+// 		int result = 0;						\
+// 		HUB_CHECK_RESOLVE_FILEOPS(_hub_, op);			\
+// 		result = _hub_fileops->SOCKETPAIR(CALL_SOCKETPAIR);	\
+// 		_hub_fd_lookup[sv[0]] = _hub_fileops;			\
+// 		_hub_fd_lookup[sv[1]] = _hub_fileops;			\
+// 		return result;						\
+// 	}
 
 #ifdef TRACE_FP_CALLS
 #define HUB_WRAP_HAS_FP(op)						\
@@ -442,12 +442,12 @@ BOOST_PP_SEQ_FOR_EACH(HUB_WRAP_HAS_FP_IWRAP, placeholder, FILEOPS_WITH_FP)
 #define HUB_WRAP_HAS_FD_IWRAP(r, data, elem) HUB_WRAP_HAS_FD(elem)
 #define HUB_WRAP_NO_FD_IWRAP(r, data, elem) HUB_WRAP_NO_FD(elem)
 #define HUB_WRAP_PIPE_IWRAP(r, data, elem) HUB_WRAP_PIPE()
-#define HUB_WRAP_SOCKET_IWRAP(r, data, elem) HUB_WRAP_SOCKET()
+// #define HUB_WRAP_SOCKET_IWRAP(r, data, elem) HUB_WRAP_SOCKET()
 
 BOOST_PP_SEQ_FOR_EACH(HUB_WRAP_HAS_FD_IWRAP, placeholder, FILEOPS_WITH_FD)
 BOOST_PP_SEQ_FOR_EACH(HUB_WRAP_NO_FD_IWRAP, placeholder, FILEOPS_WITHOUT_FD)
 BOOST_PP_SEQ_FOR_EACH(HUB_WRAP_PIPE_IWRAP, placeholder, FILEOPS_PIPE)
-BOOST_PP_SEQ_FOR_EACH(HUB_WRAP_SOCKET_IWRAP, placeholder, FILEOPS_SOCKET)
+// BOOST_PP_SEQ_FOR_EACH(HUB_WRAP_SOCKET_IWRAP, placeholder, FILEOPS_SOCKET)
 
 void _hub_resolve_all_fileops(char* tree)
 {
@@ -1384,39 +1384,39 @@ RETT_OPEN64 _hub_OPEN64(INTF_OPEN64)
 	}
 }
 
-RETT_SOCKET _hub_SOCKET(INTF_SOCKET)
-{
-	HUB_CHECK_RESOLVE_FILEOPS(_hub_, SOCKET);
+// RETT_SOCKET _hub_SOCKET(INTF_SOCKET)
+// {
+// 	HUB_CHECK_RESOLVE_FILEOPS(_hub_, SOCKET);
 
-	DEBUG("CALL: _hub_SOCKET\n");
+// 	DEBUG("CALL: _hub_SOCKET\n");
 
-	RETT_SOCKET result = _hub_fileops->SOCKET(CALL_SOCKET);
+// 	RETT_SOCKET result = _hub_fileops->SOCKET(CALL_SOCKET);
 
-	if (result > 0) {
-		//sockets always use default fileops
-		_hub_fd_lookup[result] = _hub_fileops;
-	}
+// 	if (result > 0) {
+// 		//sockets always use default fileops
+// 		_hub_fd_lookup[result] = _hub_fileops;
+// 	}
 
-	return result;
-}
+// 	return result;
+// }
 
-RETT_ACCEPT _hub_ACCEPT(INTF_ACCEPT)
-{
-	HUB_CHECK_RESOLVE_FILEOPS(_hub_, ACCEPT);
+// RETT_ACCEPT _hub_ACCEPT(INTF_ACCEPT)
+// {
+// 	HUB_CHECK_RESOLVE_FILEOPS(_hub_, ACCEPT);
 
-        //pthread_spin_lock(&global_lock);			
-	DEBUG("CALL: _hub_ACCEPT\n");
+//         //pthread_spin_lock(&global_lock);			
+// 	DEBUG("CALL: _hub_ACCEPT\n");
 
-	RETT_ACCEPT result = _hub_fileops->ACCEPT(CALL_ACCEPT);
+// 	RETT_ACCEPT result = _hub_fileops->ACCEPT(CALL_ACCEPT);
 
-	if (result > 0) {
-		//sockets always use default fileops
-		_hub_fd_lookup[result] = _hub_fileops;
-	}
+// 	if (result > 0) {
+// 		//sockets always use default fileops
+// 		_hub_fd_lookup[result] = _hub_fileops;
+// 	}
 
-        //pthread_spin_unlock(&global_lock);			
-	return result;
-}
+//         //pthread_spin_unlock(&global_lock);			
+// 	return result;
+// }
 
 RETT_UNLINK _hub_UNLINK(INTF_UNLINK)
 {

@@ -59,8 +59,8 @@ MODULE_REGISTRATION_F("nvp", _nvp_, _nvp_init2(); );
 #define NVP_WRAP_HAS_FD_IWRAP(r, data, elem) NVP_WRAP_HAS_FD(elem)
 #define NVP_WRAP_NO_FD_IWRAP(r, data, elem) NVP_WRAP_NO_FD(elem)
 
-BOOST_PP_SEQ_FOR_EACH(NVP_WRAP_HAS_FD_IWRAP, placeholder, (ACCEPT))
-BOOST_PP_SEQ_FOR_EACH(NVP_WRAP_NO_FD_IWRAP, placeholder, (PIPE) (FORK) (SOCKET) (SOCKETPAIR) (VFORK) (CREAT))
+// BOOST_PP_SEQ_FOR_EACH(NVP_WRAP_HAS_FD_IWRAP, placeholder, (ACCEPT))
+BOOST_PP_SEQ_FOR_EACH(NVP_WRAP_NO_FD_IWRAP, placeholder, (PIPE) (FORK) (VFORK) (CREAT))
 
 
 /* ============================= memcpy =============================== */
@@ -1633,60 +1633,59 @@ void _nvp_init2(void)
 	// so that the server can do other work while also listening
 	// for new requests
 	sock_fd = socket(ip_protocol, transport_protocol, 0);
-	DEBUG("hello???\n");
-	// if (sock_fd < 0) {
-	// 	DEBUG("socket failed: %s\n", strerror(errno));
-	// 	// return sock_fd;
-	// 	assert(0);
-	// }
+	if (sock_fd < 0) {
+		DEBUG("socket failed: %s\n", strerror(errno));
+		// return sock_fd;
+		assert(0);
+	}
 
-	// DEBUG("got socket %d\n", sock_fd);
+	DEBUG("got socket %d\n", sock_fd);
 
-	// memset(&my_addr, 0, addrlen);
-	// my_addr.sin_family = AF_INET;
-	// my_addr.sin_addr.s_addr = INADDR_ANY;
-	// my_addr.sin_port = htons(server_port);
+	memset(&my_addr, 0, addrlen);
+	my_addr.sin_family = AF_INET;
+	my_addr.sin_addr.s_addr = INADDR_ANY;
+	my_addr.sin_port = htons(server_port);
 
-	// DEBUG("setting socket options\n");
+	DEBUG("setting socket options\n");
 
-	// // allow socket to be reused to avoid problems with binding in the future
-	// res = setsockopt(sock_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
-	// if (res < 0) {
-	// 	DEBUG("setsockopt failed: %s\n", strerror(errno));
-	// 	// return res;
-	// 	assert(0);
-	// }
+	// allow socket to be reused to avoid problems with binding in the future
+	res = setsockopt(sock_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+	if (res < 0) {
+		DEBUG("setsockopt failed: %s\n", strerror(errno));
+		// return res;
+		assert(0);
+	}
 
-	// // bind the socket to the local address and port so we can accept connections on it
-	// res = bind(sock_fd, (struct sockaddr*)&my_addr, addrlen);
-	// if (res < 0) {
-	// 	DEBUG("bind failed: %s\n", strerror(errno));
-	// 	// return ret;
-	// 	assert(0);
-	// }
+	// bind the socket to the local address and port so we can accept connections on it
+	res = bind(sock_fd, (struct sockaddr*)&my_addr, addrlen);
+	if (res < 0) {
+		DEBUG("bind failed: %s\n", strerror(errno));
+		// return ret;
+		assert(0);
+	}
 
-	// DEBUG("listening for connections\n");
-	// // set up socket to listen for connections
-	// res = listen(sock_fd, 2);
-	// if (res < 0) {
-	// 	// perror("listen");
-	// 	DEBUG("listen failed: %s\n", strerror(errno));
-	// 	// return ret;
-	// 	assert(0);
-	// }
+	DEBUG("listening for connections\n");
+	// set up socket to listen for connections
+	res = listen(sock_fd, 2);
+	if (res < 0) {
+		// perror("listen");
+		DEBUG("listen failed: %s\n", strerror(errno));
+		// return ret;
+		assert(0);
+	}
 
-	// // wait for someone to connect and accept when they do
-	// DEBUG("waiting for connections\n");
-	// accept_socket = accept(sock_fd, (struct sockaddr*)&my_addr, (socklen_t*)&addrlen);
-	// if (accept_socket < 0) {
-	// 	DEBUG("accept failed: %s\n", strerror(errno));
-	// 	// return accept_socket;
-	// 	assert(0);
-	// }
+	// wait for someone to connect and accept when they do
+	DEBUG("waiting for connections\n");
+	accept_socket = accept(sock_fd, (struct sockaddr*)&my_addr, (socklen_t*)&addrlen);
+	if (accept_socket < 0) {
+		DEBUG("accept failed: %s\n", strerror(errno));
+		// return accept_socket;
+		assert(0);
+	}
 
-	// // TODO: close these later when we won't need them anymore
-	// close(sock_fd);
-	// close(accept_socket);
+	// TODO: close these later when we won't need them anymore
+	close(sock_fd);
+	close(accept_socket);
 	
 #endif
 #endif 
@@ -2063,7 +2062,7 @@ void nvp_cleanup_node(struct NVNode *node, int free_root, int unmap_btree)
 	int total_dirty_mmaps = node->total_dirty_mmaps;
 	int root_dirty_num = node->root_dirty_num;
 	
-	DEBUG("Cleanup: root 0x%x, height %u\n", root, height);
+	// DEBUG("Cleanup: root 0x%x, height %u\n", root, height);
 
 	if(root_dirty_num > 0)
 		dirty_cache = node->root_dirty_cache;
