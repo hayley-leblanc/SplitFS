@@ -30,6 +30,10 @@
 #include "log.h"
 #include "tbl_mmaps.h"
 
+#if defined CLIENT || defined SERVER 
+#include "remote.h"
+#endif
+
 BOOST_PP_SEQ_FOR_EACH(DECLARE_WITHOUT_ALIAS_FUNCTS_IWRAP, _nvp_, ALLOPS_WPAREN)
 BOOST_PP_SEQ_FOR_EACH(DECLARE_WITHOUT_ALIAS_FUNCTS_IWRAP, _nvp_, SHM_WPAREN)
 BOOST_PP_SEQ_FOR_EACH(DECLARE_WITHOUT_ALIAS_FUNCTS_IWRAP, _nvp_, METAOPS)
@@ -4630,6 +4634,8 @@ RETT_OPEN _nvp_OPEN(INTF_OPEN)
 
 	NVP_UNLOCK_NODE_WR(nvf);
 	NVP_UNLOCK_FD_WR(nvf);
+
+	add_fd_path_node(fd, path);
 
 	errno = 0;
 	END_TIMING(open_t, open_time);
