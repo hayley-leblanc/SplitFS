@@ -1559,6 +1559,7 @@ void _nvp_init2(void)
 	struct addrinfo *result, *rp;
 	int sock_fd;
 	char* server_port = "4444";
+	int server_port_num = 4444;
 	int error = 0;
 	int res;
 	int opt = 1;
@@ -1622,8 +1623,8 @@ void _nvp_init2(void)
 	// TODO: close the connection later when we won't use it anymore
 	close(sock_fd);
 #elif SERVER 
-	struct sockaddr_in my_addr;
-	int addrlen = sizeof(my_addr);
+	// struct sockaddr_in my_addr;
+	// int addrlen = sizeof(my_addr);
 	int accept_socket;
 
 	DEBUG("opening connections to client\n");
@@ -1641,10 +1642,26 @@ void _nvp_init2(void)
 
 	DEBUG("got socket %d\n", sock_fd);
 
-	memset(&my_addr, 0, addrlen);
-	my_addr.sin_family = AF_INET;
-	my_addr.sin_addr.s_addr = INADDR_ANY;
-	my_addr.sin_port = htons(server_port);
+	memset(&hints, 0, sizeof(hints));
+	hints.ai_family = AF_INET;
+	hints.ai_socktype = SOCK_STREAM;
+	hints.ai_flags = AI_PASSIVE;
+	hints.ai_protocol = 0;
+	hints.ai_canonname = NULL;
+	hints.ai_addr = NULL;
+	hints.ai_next = NULL;
+
+	res = getaddrinfo(NULL, server_port, &hints, &result);
+	if (res < 0) {
+		DEBUG("getaddrinfo\n");
+		assert(0);
+	}
+	
+	sock_fd = socket(result->ai_family, result->ai_socktype, result->ai_protocol);
+	if (sock_fd < 0) {
+		DEBUG("socket\n");
+		assert(0);
+	}
 
 	DEBUG("setting socket options\n");
 
@@ -1657,7 +1674,8 @@ void _nvp_init2(void)
 	}
 
 	// bind the socket to the local address and port so we can accept connections on it
-	res = bind(sock_fd, (struct sockaddr*)&my_addr, addrlen);
+	// res = bind(sock_fd, (struct sockaddr*)&my_addr, addrlen);
+	res = bind(sock_fd, result->ai_addr, result->ai_addrlen);
 	if (res < 0) {
 		DEBUG("bind failed: %s\n", strerror(errno));
 		// return ret;
@@ -1676,16 +1694,18 @@ void _nvp_init2(void)
 
 	// wait for someone to connect and accept when they do
 	DEBUG("waiting for connections\n");
-	accept_socket = accept(sock_fd, (struct sockaddr*)&my_addr, (socklen_t*)&addrlen);
+	accept_socket = accept(sock_fd, result->ai_addr, &result->ai_addrlen);
 	if (accept_socket < 0) {
 		DEBUG("accept failed: %s\n", strerror(errno));
 		// return accept_socket;
 		assert(0);
 	}
 
+	freeaddrinfo(result);
+
 	// TODO: close these later when we won't need them anymore
-	close(sock_fd);
-	close(accept_socket);
+	_hub_find_fileop("posix")->CLOSE(sock_fd);
+	_hub_find_fileop("posix")->CLOSE(accept_socket);
 	
 #endif
 #endif 
