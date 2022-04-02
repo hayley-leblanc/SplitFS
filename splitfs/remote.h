@@ -10,6 +10,7 @@ pthread_t server_thread;
 enum remote_request_type {
     READ = 0,
     WRITE,
+    CREATE,
 };
 
 #define MAX_FILENAME_LEN 256 // maximum filename size in ext4
@@ -18,7 +19,14 @@ enum remote_request_type {
 // TODO: need a way to actually send written data? 
 struct remote_request {
     enum remote_request_type type;
+    int flags;
+    mode_t mode;
     char file_path[MAX_FILENAME_LEN];
+};
+
+struct remote_response {
+    enum remote_request_type type; // type of original request, just as a sanity check
+    int fd;
 };
 
 // structures and methods for associating file paths with open file descriptors

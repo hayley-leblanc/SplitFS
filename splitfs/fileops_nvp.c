@@ -4268,6 +4268,7 @@ RETT_OPEN _nvp_OPEN(INTF_OPEN)
 		int mode = va_arg(arg, int);
 		va_end(arg);
 		// Open system call is done here  
+		DEBUG("passthrough open\n");
 		result = _nvp_fileops->OPEN(path, oflag & (~O_APPEND), mode);
 	} else { 
 		result = _nvp_fileops->OPEN(path, oflag & (~O_APPEND));
@@ -4365,7 +4366,44 @@ RETT_OPEN _nvp_OPEN(INTF_OPEN)
 		// Open system call is done here  
 		DEBUG_FILE("%s: calling open with path = %s, flag = %d, mode = %d, ino addr = %p, ino size addr = %p\n", __func__, path, oflag, mode, &file_st.st_ino, &file_st.st_size);
 		//result = syscall(334, path, oflag & (~O_APPEND), mode, &file_st.st_ino, &file_st.st_size);
+#if CLIENT
+		DEBUG("sending create request to server for file %s\n", path);
+		struct remote_request request;
+		memset(&request, 0, sizeof(struct remote_request));
+		request.type = CREATE;
+		strcpy(request.file_path, path);
+		request.flags = new_flags & (~O_APPEND);
+		request.mode = mode;
+
+		// send the create request to the server
+		int ret = write(cxn_fd, &request, sizeof(request));
+		if (ret < sizeof(request)) {
+			DEBUG("failed or partial write\n");
+			return -1;
+		}
+
+		struct remote_response create_response;
+		int response_size = sizeof(create_response);
+
+		// wait for a response with the file descriptor from the server
+		int bytes_read = read(cxn_fd, &create_response, response_size);
+		if (bytes_read < 0) {
+			DEBUG("read failed\n");
+			assert(0);
+		} 
+		int cur_index = bytes_read;
+		while (cur_index < response_size) {
+			bytes_read = read(cxn_fd, &create_response+cur_index, response_size-cur_index);
+			if (bytes_read < 0) {
+				DEBUG("read failed\n");
+				assert(0);
+			}
+			cur_index += bytes_read;
+		}
+		result = create_response.fd;
+#else 
 		result = _nvp_fileops->OPEN(path, new_flags & (~O_APPEND), mode);
+#endif
 #if !POSIX_ENABLED
 		if (result >= 0) {
 			START_TIMING(op_log_entry_t, op_log_entry_time);
@@ -4577,7 +4615,7 @@ RETT_OPEN _nvp_OPEN(INTF_OPEN)
 	NVP_UNLOCK_NODE_WR(nvf);
 	NVP_UNLOCK_FD_WR(nvf);
 
-	add_fd_path_node(fd, path);
+	// add_fd_path_node(fd, path);
 
 	errno = 0;
 	END_TIMING(open_t, open_time);
