@@ -6,8 +6,11 @@
 #include <netdb.h>
 
 #include "remote.h"
+#include "fileops_nvp.h"
 
-#if SERVER
+void server_listen(int sock_fd);
+int remote_create(struct remote_request *request);
+
 void server_thread_start(void *arg) {
     int accept_socket, sock_fd, res;
     struct addrinfo hints;
@@ -102,12 +105,13 @@ void server_thread_start(void *arg) {
 // TODO: in the future if we are monitoring multiple file descriptors, use select()
 void server_listen(int sock_fd) {
     int request_size = sizeof(struct remote_request);
+    struct remote_request *request;
     char request_buffer[request_size];
     int bytes_read;
     int cur_index = 0;
         
     while(1) {
-        DEBUG("waiting for message from client\n");
+        // DEBUG("waiting for message from client\n");
         bytes_read = read(sock_fd, request_buffer, request_size);
         if (bytes_read < 0) {
             DEBUG("read failed, client is disconnected\n");
@@ -115,7 +119,6 @@ void server_listen(int sock_fd) {
             assert(0); // TODO: better error handling
         } else if (bytes_read > 0) {
             cur_index += bytes_read;
-            // DEBUG("read %d bytes from client\n", bytes_read);
             // read until we have the full request from the client
             while (cur_index < request_size) {
                 bytes_read = read(sock_fd, request_buffer+cur_index, request_size-cur_index);
@@ -127,10 +130,31 @@ void server_listen(int sock_fd) {
                 cur_index += bytes_read;
             }
             DEBUG("got message of %d bytes from the client!\n", cur_index);
-            assert(0);
+
+            // perform an action based on the type of request made by the client
+            request = (struct remote_request*)request_buffer;
+            switch(request->type) {
+                case CREATE:
+                    remote_create(request);
+                    break;
+            }
         }
     }
 }
 
-#endif
+int remote_create(struct remote_request *request) {
+    int fd, ret;
+    struct remote_response response;
+
+    fd = _nvp_OPEN(request->file_path, request->flags, request->mode);
+    response.type = CREATE;
+    response.fd = fd;
+    ret = write(cxn_fd, &response, sizeof(response));
+    if (ret < 0) {
+        DEBUG("failed or partial write\n");
+        return ret;
+    }
+    return 0;
+}
+
 

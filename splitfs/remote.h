@@ -1,10 +1,10 @@
 #ifndef REMOTE_H
 #define REMOTE_H
 
-void server_thread_start(void *arg);
-
 int cxn_fd;
 pthread_t server_thread;
+
+void server_thread_start(void *arg);
 
 // enum for request types. add to this to add new operations
 enum remote_request_type {
