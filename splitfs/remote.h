@@ -5,6 +5,7 @@ int cxn_fd;
 pthread_t server_thread;
 
 void server_thread_start(void *arg);
+int read_from_socket(int sock, void* buf, size_t len);
 
 // enum for request types. add to this to add new operations
 enum remote_request_type {
@@ -17,9 +18,13 @@ enum remote_request_type {
 
 // struct for sending a remote request. add more fields to this
 // TODO: need a way to actually send written data? 
+// TODO: don't include file path unless we absolutely have to
 struct remote_request {
     enum remote_request_type type;
     int flags;
+    int fd;
+    size_t count;
+    loff_t offset;
     mode_t mode;
     char file_path[MAX_FILENAME_LEN];
 };
