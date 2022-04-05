@@ -16,6 +16,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netdb.h>
+#include <pthread.h>
 
 #include "perfcount.h"
 
@@ -29,10 +30,8 @@
 #include "perf_delay/add_delay.h"
 #include "log.h"
 #include "tbl_mmaps.h"
-
-#if defined CLIENT || defined SERVER 
 #include "remote.h"
-#endif
+
 
 BOOST_PP_SEQ_FOR_EACH(DECLARE_WITHOUT_ALIAS_FUNCTS_IWRAP, _nvp_, ALLOPS_WPAREN)
 BOOST_PP_SEQ_FOR_EACH(DECLARE_WITHOUT_ALIAS_FUNCTS_IWRAP, _nvp_, SHM_WPAREN)
@@ -902,7 +901,8 @@ void nvp_cleanup(void)
 {
 	int i, j;
 
-#if defined CLIENT || defined SERVER
+#if CLIENT || SERVER
+	pthread_join(server_thread, NULL);
 	DEBUG("closing remote connection file descriptor %d\n", cxn_fd);
 	_hub_find_fileop("posix")->CLOSE(cxn_fd);
 #endif 
@@ -1568,7 +1568,6 @@ void _nvp_init2(void)
 	struct addrinfo *result, *rp;
 	int sock_fd;
 	char* server_port = "4444";
-	int server_port_num = 4444;
 	int error = 0;
 	int res;
 	int opt = 1;
@@ -1620,89 +1619,32 @@ void _nvp_init2(void)
 	}
 
 	freeaddrinfo(result);
-	// TODO: close the connection later when we won't use it anymore
-	// _hub_find_fileop("posix")->CLOSE(sock_fd);
 	cxn_fd = sock_fd;
 #elif SERVER 
-	int accept_socket;
-
-	DEBUG("opening connections to client\n");
+	pthread_attr_t thread_attr;
+	pthread_t thread;
 	
-	// set up a socket to listen for a connection request
-	// at some point, this will have to run in the background
-	// so that the server can do other work while also listening
-	// for new requests
-	sock_fd = socket(ip_protocol, transport_protocol, 0);
-	if (sock_fd < 0) {
-		DEBUG("socket failed: %s\n", strerror(errno));
-		// return sock_fd;
+	res = pthread_attr_init(&thread_attr);
+	if (res != 0) {
+		DEBUG("pthread attr init failed\n");
 		assert(0);
 	}
 
-	DEBUG("got socket %d\n", sock_fd);
-
-	memset(&hints, 0, sizeof(hints));
-	hints.ai_family = AF_INET;
-	hints.ai_socktype = SOCK_STREAM;
-	hints.ai_flags = AI_PASSIVE;
-	hints.ai_protocol = 0;
-	hints.ai_canonname = NULL;
-	hints.ai_addr = NULL;
-	hints.ai_next = NULL;
-
-	res = getaddrinfo(NULL, server_port, &hints, &result);
-	if (res < 0) {
-		DEBUG("getaddrinfo\n");
-		assert(0);
-	}
-	
-	sock_fd = socket(result->ai_family, result->ai_socktype, result->ai_protocol);
-	if (sock_fd < 0) {
-		DEBUG("socket\n");
+	res = pthread_create(&thread, &thread_attr, server_thread_start, NULL);
+	if (res != 0) {
+		DEBUG("pthread create failed\n");
 		assert(0);
 	}
 
-	// allow socket to be reused to avoid problems with binding in the future
-	res = setsockopt(sock_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
-	if (res < 0) {
-		DEBUG("setsockopt failed: %s\n", strerror(errno));
-		// return res;
+	res = pthread_attr_destroy(&thread_attr);
+	if (res != 0) {
+		DEBUG("pthread attr destroy failed\n");
 		assert(0);
 	}
 
-	// bind the socket to the local address and port so we can accept connections on it
-	// res = bind(sock_fd, (struct sockaddr*)&my_addr, addrlen);
-	res = bind(sock_fd, result->ai_addr, result->ai_addrlen);
-	if (res < 0) {
-		DEBUG("bind failed: %s\n", strerror(errno));
-		// return ret;
-		assert(0);
-	}
-
-	// set up socket to listen for connections
-	res = listen(sock_fd, 2);
-	if (res < 0) {
-		// perror("listen");
-		DEBUG("listen failed: %s\n", strerror(errno));
-		// return ret;
-		assert(0);
-	}
-
-	// wait for someone to connect and accept when they do
-	DEBUG("waiting for connections\n");
-	accept_socket = accept(sock_fd, result->ai_addr, &result->ai_addrlen);
-	if (accept_socket < 0) {
-		DEBUG("accept failed: %s\n", strerror(errno));
-		// return accept_socket;
-		assert(0);
-	}
-
-	freeaddrinfo(result);
-
-	// TODO: close these later when we won't need them anymore
-	_hub_find_fileop("posix")->CLOSE(sock_fd); // I think we can close this one here?
-	// _hub_find_fileop("posix")->CLOSE(accept_socket); // I think we want to save this one and close it later?
-	cxn_fd = accept_socket;
+	// currently we join on this thread in _nvp_cleanup so the FS finishes setup
+	// and can't clean up until the thread exits (which currently it never does)
+	server_thread = thread;
 	
 #endif
 #endif 

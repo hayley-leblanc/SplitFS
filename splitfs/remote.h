@@ -1,7 +1,10 @@
 #ifndef REMOTE_H
 #define REMOTE_H
 
+void server_thread_start(void *arg);
+
 int cxn_fd;
+pthread_t server_thread;
 
 // enum for request types. add to this to add new operations
 enum remote_request_type {
@@ -27,10 +30,10 @@ struct fd_path_node {
     char file_path[MAX_FILENAME_LEN];
 };
 
-struct fd_path_node *fd_list_head = NULL;
-struct fd_path_node *fd_list_tail = NULL;
+static struct fd_path_node *fd_list_head = NULL;
+static struct fd_path_node *fd_list_tail = NULL;
 
-int add_fd_path_node(int fd, char* file_path) {
+static int add_fd_path_node(int fd, char* file_path) {
     DEBUG("adding fd %d for path %s\n", fd, file_path);
     if (fd_list_head == NULL) {
         fd_list_head = malloc(sizeof(struct fd_path_node));
