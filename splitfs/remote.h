@@ -32,6 +32,7 @@ struct remote_request {
 struct remote_response {
     enum remote_request_type type; // type of original request, just as a sanity check
     int fd;
+    size_t return_value;
 };
 
 // structures and methods for associating file paths with open file descriptors
