@@ -387,7 +387,7 @@ int hub_check_resolve_fileops(char* tree)
 		if(file>=OPEN_MAX) { MSG("file descriptor too large (%i > %i)\n", file, OPEN_MAX-1); errno = EBADF; return (RETT_##op) -1; } \
 		if(file<0) { MSG("file < 0 (file = %i).  return -1;\n", file); errno = EBADF; return (RETT_##op) -1; } \
 		if(_hub_fd_lookup[file]==NULL) { MSG("_hub_"#op": That file descriptor (%i) is invalid: perhaps you didn't call open first?\n", file); errno = EBADF; return -1; } \
-	        DEBUG("_hub_" #op " is calling %s->" #op "\n", _hub_fd_lookup[file]->name); \
+	        DEBUG_FILE("_hub_" #op " is calling %s->" #op "\n", _hub_fd_lookup[file]->name); \
 		result = (RETT_##op) _hub_fd_lookup[file]->op( CALL_##op ); \
 		DEBUG_FILE("_hub_" #op " returns\n");			\
 		return result;						\
@@ -398,7 +398,7 @@ int hub_check_resolve_fileops(char* tree)
 		int result = 0;						\
 		HUB_CHECK_RESOLVE_FILEOPS(_hub_, op);			\
 		DEBUG("CALL: " MK_STR(_hub_##op) "\n");			\
-		DEBUG("_hub_" #op " is calling %s->" #op "\n", _hub_fileops->name); \
+		DEBUG_FILE("_hub_" #op " is calling %s->" #op "\n", _hub_fileops->name); \
                 result = _hub_fileops->op( CALL_##op );			\
 		return result;						\
 	}
@@ -431,7 +431,7 @@ int hub_check_resolve_fileops(char* tree)
 		if(fileno(fp)>=OPEN_MAX) { DEBUG("file descriptor too large (%i > %i)\n", fileno(fp), OPEN_MAX-1); errno = EBADF; return (RETT_##op) -1; } \
 		if(fileno(fp)<0) { DEBUG("file < 0 (file = %i).  return -1;\n", fileno(fp)); errno = EBADF; return (RETT_##op) -1; } \
 		if(_hub_fd_lookup[fileno(fp)]==NULL) { DEBUG("_hub_"#op": That file descriptor (%i) is invalid: perhaps you didn't call open first?\n", fileno(fp)); errno = EBADF; return -1; } \
-		DEBUG("_hub_" #op " is calling %s->" #op "\n", _hub_fd_lookup[fileno(fp)]->name); \
+		DEBUG_FILE("_hub_" #op " is calling %s->" #op "\n", _hub_fd_lookup[fileno(fp)]->name); \
 		return (RETT_##op) _hub_fd_lookup[fileno(fp)]->op( CALL_##op );	\
 	}
 

@@ -48,7 +48,7 @@ MODULE_REGISTRATION_F("nvp", _nvp_, _nvp_init2(); );
 		if(UNLIKELY(file>=OPEN_MAX)) { DEBUG("file descriptor too large (%i > %i)\n", file, OPEN_MAX-1); errno = EBADF; return (RETT_##op) -1; } \
 		if(UNLIKELY(file<0)) { DEBUG("file < 0 (file = %i).  return -1;\n", file); errno = EBADF; return (RETT_##op) -1; } \
 		if(UNLIKELY(!_nvp_fd_lookup[file].valid)) { DEBUG("That file descriptor (%i) is invalid\n", file); errno = EBADF; return -1; } \
-		DEBUG("_nvp_" #op " is calling %s->" #op "\n", _nvp_fileops->name); \
+		DEBUG_FILE("_nvp_" #op " is calling %s->" #op "\n", _nvp_fileops->name); \
 		return (RETT_##op) _nvp_fileops->op( CALL_##op );	\
 	}
 
