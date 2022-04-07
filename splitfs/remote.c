@@ -112,33 +112,45 @@ void server_listen(int sock_fd) {
         
     while(1) {
         // DEBUG("waiting for message from client\n");
-        bytes_read = read(sock_fd, request_buffer, request_size);
-        if (bytes_read < 0) {
-            DEBUG("read failed, client is disconnected\n");
-            _hub_find_fileop("posix")->CLOSE(sock_fd); 
-            assert(0); // TODO: better error handling
-        } else if (bytes_read > 0) {
-            cur_index += bytes_read;
-            // read until we have the full request from the client
-            while (cur_index < request_size) {
-                bytes_read = read(sock_fd, request_buffer+cur_index, request_size-cur_index);
-                if (bytes_read < 0) {
-                    DEBUG("read failed\n");
-                    _hub_find_fileop("posix")->CLOSE(sock_fd); 
-                    assert(0);
-                }
-                cur_index += bytes_read;
-            }
-            DEBUG("got message of %d bytes from the client!\n", cur_index);
+		bytes_read = read_from_socket(sock_fd, request_buffer, request_size);
+		if (bytes_read < request_size) {
+			DEBUG("read failed, client is disconnected\n");
+			_hub_find_fileop("posix")->CLOSE(sock_fd); 
+			assert(0); // TODO: better error handling
+		}
+		request = (struct remote_request*)request_buffer;
+		switch(request->type) {
+			case CREATE:
+				remote_create(request);
+				break;
+		}
+        // bytes_read = read(sock_fd, request_buffer, request_size);
+        // if (bytes_read < 0) {
+        //     DEBUG("read failed, client is disconnected\n");
+        //     _hub_find_fileop("posix")->CLOSE(sock_fd); 
+        //     assert(0); // TODO: better error handling
+        // } else if (bytes_read > 0) {
+        //     cur_index += bytes_read;
+        //     // read until we have the full request from the client
+        //     while (cur_index < request_size) {
+        //         bytes_read = read(sock_fd, request_buffer+cur_index, request_size-cur_index);
+        //         if (bytes_read < 0) {
+        //             DEBUG("read failed\n");
+        //             _hub_find_fileop("posix")->CLOSE(sock_fd); 
+        //             assert(0);
+        //         }
+        //         cur_index += bytes_read;
+        //     }
+        //     DEBUG("got message of %d bytes from the client!\n", cur_index);
 
-            // perform an action based on the type of request made by the client
-            request = (struct remote_request*)request_buffer;
-            switch(request->type) {
-                case CREATE:
-                    remote_create(request);
-                    break;
-            }
-        }
+        //     // perform an action based on the type of request made by the client
+        //     request = (struct remote_request*)request_buffer;
+        //     switch(request->type) {
+        //         case CREATE:
+        //             remote_create(request);
+        //             break;
+        //     }
+        // }
     }
 }
 
@@ -155,6 +167,24 @@ int remote_create(struct remote_request *request) {
         return ret;
     }
     return 0;
+}
+
+int read_from_socket(int sock, void *buf, size_t len) {
+	int bytes_read = read(sock, buf, len);
+	if (bytes_read < 0) {
+		DEBUG("read failed");
+		return bytes_read;
+	}
+	int cur_index = bytes_read;
+	while (cur_index < len) {
+		bytes_read = read(sock, buf+cur_index, len-cur_index);
+		if (bytes_read < 0) {
+			DEBUG("read failed");
+			return bytes_read;
+		}
+		cur_index += bytes_read;
+	}
+	return bytes_read;
 }
 
 

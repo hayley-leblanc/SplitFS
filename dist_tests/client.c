@@ -6,6 +6,8 @@
 #include <fcntl.h>
 
 int main(void) {
+	char *write_buf = "hello!";
+
     int fd = open("/mnt/pmem_emul/foo.txt", O_CREAT | O_RDWR, 0777);
 	if (fd < 0) {
 		perror("open");
@@ -13,6 +15,13 @@ int main(void) {
 	}
 
 	printf("fd: %d\n", fd);
+
+	int ret = write(fd, write_buf, strlen(write_buf));
+	if (fd < 0) {
+		perror("write");
+		// close(fd);
+		return fd;
+	}
 
 	// close(fd);
 

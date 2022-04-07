@@ -3666,6 +3666,43 @@ RETT_PWRITE _nvp_do_pwrite(INTF_PWRITE,
 			   struct NVTable_maps *tbl_app,
 			   struct NVTable_maps *tbl_over)
 {
+	DEBUG("_nvp_do_pwrite\n");
+#if CLIENT 
+	DEBUG("sending write request to server for fd = %d, "
+		   "offset = %lu, count = %lu\n",
+		   file, offset, count);
+	struct remote_request request;
+	memset(&request, 0, sizeof(struct remote_request));
+	request.type = WRITE;
+	request.fd = file;
+	request.count = count;
+	request.offset = offset;
+
+	// first we sent the request with metadata about the write call 
+	// so that the server knows what to expect
+	int ret = write(cxn_fd, &request, sizeof(request));
+	if (ret < sizeof(request)) {
+		DEBUG("failed or partial write\n");
+		return -1;
+	}
+
+	// then we send the data to be written
+	// TODO: where does buf come from? it seems to appear out of nowhere??
+
+	ret = write(cxn_fd, buf, count);
+	if (ret < sizeof(request)) {
+		DEBUG("failed or partial write\n");
+		return -1;
+	}
+
+	// then we need to wait for a response to tell us how much actually got written
+	struct remote_response write_response;
+	memset(&write_response, 0, sizeof(struct remote_response));
+
+
+
+	return 0;
+#else 
 	CHECK_RESOLVE_FILEOPS(_nvp_);
 	off_t write_offset, offset_within_mmap;
 	size_t write_count, extent_length;
@@ -3988,6 +4025,7 @@ appends:
 		    nvf->node->serialno);
 
 	 return write_count;
+#endif
 }
 
  void _nvp_test_invalidate_node(struct NVFile* nvf)
@@ -4386,20 +4424,25 @@ RETT_OPEN _nvp_OPEN(INTF_OPEN)
 		int response_size = sizeof(create_response);
 
 		// wait for a response with the file descriptor from the server
-		int bytes_read = read(cxn_fd, &create_response, response_size);
-		if (bytes_read < 0) {
-			DEBUG("read failed\n");
+		int bytes_read = read_from_socket(cxn_fd, &create_response, response_size);
+		if (bytes_read < response_size) {
+			DEBUG("failed or partial read\n");
 			assert(0);
-		} 
-		int cur_index = bytes_read;
-		while (cur_index < response_size) {
-			bytes_read = read(cxn_fd, &create_response+cur_index, response_size-cur_index);
-			if (bytes_read < 0) {
-				DEBUG("read failed\n");
-				assert(0);
-			}
-			cur_index += bytes_read;
 		}
+		// int bytes_read = read(cxn_fd, &create_response, response_size);
+		// if (bytes_read < 0) {
+		// 	DEBUG("read failed\n");
+		// 	assert(0);
+		// } 
+		// int cur_index = bytes_read;
+		// while (cur_index < response_size) {
+		// 	bytes_read = read(cxn_fd, &create_response+cur_index, response_size-cur_index);
+		// 	if (bytes_read < 0) {
+		// 		DEBUG("read failed\n");
+		// 		assert(0);
+		// 	}
+		// 	cur_index += bytes_read;
+		// }
 		result = create_response.fd;
 #else 
 		result = _nvp_fileops->OPEN(path, new_flags & (~O_APPEND), mode);
@@ -5444,6 +5487,7 @@ RETT_READ _nvp_READ(INTF_READ)
 RETT_FWRITE _nvp_FWRITE(INTF_FWRITE)
 {
 	DEBUG_FILE("_nvp_WRITE %d\n", fileno(fp));
+	DEBUG("_nvp_FWRITE\n");
 	num_write++;
 	RETT_FWRITE result;
 
