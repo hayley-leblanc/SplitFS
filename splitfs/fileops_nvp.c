@@ -3705,10 +3705,6 @@ RETT_PWRITE _nvp_do_pwrite(INTF_PWRITE,
 		return -1;
 	}
 
-	// TODO: if there was an error on the server side handling this, it should 
-	// be passed through to the client here. right now we completely ignore that 
-	// possibility
-
 	return write_response.return_value;
 #else 
 	CHECK_RESOLVE_FILEOPS(_nvp_);
