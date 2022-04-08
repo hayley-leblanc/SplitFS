@@ -3288,6 +3288,54 @@ RETT_PWRITE write_to_file_mmap(int file,
 		 struct NVFile *nvf, struct NVTable_maps *tbl_app,
 		 struct NVTable_maps *tbl_over)
 {
+	DEBUG("_nvp_do_pread\n");
+#if CLIENT 
+	DEBUG("sending read request to server for fd = %d, "
+		   "offset = %lu, count = %lu\n",
+		   file, offset, count);
+	struct remote_request request;
+	memset(&request, 0, sizeof(struct remote_request));
+	request.type = READ;
+	request.fd = file;
+	request.count = count;
+	request.offset = offset;
+
+	// request file data
+	int ret = write(cxn_fd, &request, sizeof(request));
+	if (ret < sizeof(request)) {
+		DEBUG("failed or partial write sending write request\n");
+		return -1;
+	}
+
+	// then read the sent data into the user buffer
+	// server will first send a response with return value/number of bytes read
+	// then the data
+
+	struct remote_response read_response;
+	memset(&read_response, 0, sizeof(read_response));
+	int bytes_read = read_from_socket(cxn_fd, &read_response, sizeof(read_response));
+	if (bytes_read < sizeof(read_response)) {
+		DEBUG("failed or partial read\n");
+		return -1;
+	}
+
+	// we should be able to read directly into the user buffer
+	if (read_response.return_value < 0) {
+		DEBUG("server failed processing read\n");
+		return read_response.return_value;
+	}
+	int bytes_to_read = read_response.return_value;
+	if (bytes_to_read > 0) {
+		bytes_read = read_from_socket(cxn_fd, buf, bytes_to_read);
+		if (bytes_read < bytes_to_read) {
+			DEBUG("failed or partial read\n");
+			return -1;
+		}
+	}
+
+	return bytes_to_read;
+
+#endif
 	SANITYCHECKNVF(nvf);
 	long long read_offset_within_true_length = 0;
 	size_t read_count, extent_length, read_count_beyond_true_length;
