@@ -123,6 +123,9 @@ void server_listen(int sock_fd) {
 			case CREATE:
 				remote_create(request);
 				break;
+			case WRITE:
+				remote_write(request);
+				break;
 		}
         // bytes_read = read(sock_fd, request_buffer, request_size);
         // if (bytes_read < 0) {
@@ -169,17 +172,57 @@ int remote_create(struct remote_request *request) {
     return 0;
 }
 
+int remote_write(struct remote_request *request) {
+	int ret;
+	struct remote_response response;
+
+	// the client will send us a buffer of data, we need to read that 
+	// from the socket first
+
+	// TODO: could we run into issues with this if they send a really large
+	// amount of data?
+	char* write_buf = malloc(request->count);
+	if (write_buf == NULL) {
+		DEBUG("malloc failed\n");
+		// return -ENOMEM;
+		ret = -ENOMEM;
+		goto write_respond;
+	}
+
+	ret = read_from_socket(cxn_fd, write_buf, request->count);
+	if (ret < 0) {
+		// return ret;
+		goto write_respond;
+	}
+
+	ret = _nvp_PWRITE(request->fd, write_buf, request->count, request->offset);
+	
+	// send back a response with the error code
+write_respond:
+	free(write_buf);
+	response.type = WRITE;
+	response.fd = request->fd;
+	response.return_value = ret;
+	ret = write(cxn_fd, &response, sizeof(response));
+	if (ret < 0) {
+		DEBUG("error sending write response\n");
+		return ret;
+	}
+
+	return 0;
+}
+
 int read_from_socket(int sock, void *buf, size_t len) {
 	int bytes_read = read(sock, buf, len);
 	if (bytes_read < 0) {
-		DEBUG("read failed");
+		DEBUG("read failed\n");
 		return bytes_read;
 	}
 	int cur_index = bytes_read;
 	while (cur_index < len) {
 		bytes_read = read(sock, buf+cur_index, len-cur_index);
 		if (bytes_read < 0) {
-			DEBUG("read failed");
+			DEBUG("read failed\n");
 			return bytes_read;
 		}
 		cur_index += bytes_read;
