@@ -3682,7 +3682,7 @@ RETT_PWRITE _nvp_do_pwrite(INTF_PWRITE,
 	// so that the server knows what to expect
 	int ret = write(cxn_fd, &request, sizeof(request));
 	if (ret < sizeof(request)) {
-		DEBUG("failed or partial write\n");
+		DEBUG("failed or partial write sending write request\n");
 		return -1;
 	}
 
@@ -3690,18 +3690,26 @@ RETT_PWRITE _nvp_do_pwrite(INTF_PWRITE,
 	// TODO: where does buf come from? it seems to appear out of nowhere??
 
 	ret = write(cxn_fd, buf, count);
-	if (ret < sizeof(request)) {
-		DEBUG("failed or partial write\n");
+	if (ret < count) {
+		DEBUG("failed or partial write sending write data\n");
+		DEBUG("sent %d out of %d bytes\n", ret, count);
 		return -1;
 	}
 
 	// then we need to wait for a response to tell us how much actually got written
 	struct remote_response write_response;
 	memset(&write_response, 0, sizeof(struct remote_response));
+	int bytes_read = read_from_socket(cxn_fd, &write_response, sizeof(write_response));
+	if (bytes_read < sizeof(write_response)) {
+		DEBUG("failed or partial read\n");
+		return -1;
+	}
 
+	// TODO: if there was an error on the server side handling this, it should 
+	// be passed through to the client here. right now we completely ignore that 
+	// possibility
 
-
-	return 0;
+	return write_response.return_value;
 #else 
 	CHECK_RESOLVE_FILEOPS(_nvp_);
 	off_t write_offset, offset_within_mmap;
