@@ -10,6 +10,8 @@
 
 void server_listen(int sock_fd);
 int remote_create(struct remote_request *request);
+int remote_write(struct remote_request *request);
+int remote_read(struct remote_request *request);
 
 void server_thread_start(void *arg) {
     int accept_socket, sock_fd, res;
@@ -114,9 +116,11 @@ void server_listen(int sock_fd) {
         // DEBUG("waiting for message from client\n");
 		bytes_read = read_from_socket(sock_fd, request_buffer, request_size);
 		if (bytes_read < request_size) {
+			DEBUG("read %d bytes\n", bytes_read);
 			DEBUG("read failed, client is disconnected\n");
 			_hub_find_fileop("posix")->CLOSE(sock_fd); 
 			assert(0); // TODO: better error handling
+			// TODO: if the client disconnects, go back and wait for another one to connect
 		}
 		request = (struct remote_request*)request_buffer;
 		switch(request->type) {
@@ -125,6 +129,9 @@ void server_listen(int sock_fd) {
 				break;
 			case WRITE:
 				remote_write(request);
+				break;
+			case READ:
+				remote_read(request);
 				break;
 		}
     }
@@ -182,6 +189,50 @@ write_respond:
 		return ret;
 	}
 
+	return 0;
+}
+
+int remote_read(struct remote_request *request) {
+	char *read_buf;
+	struct remote_response response;
+	int ret, bytes_read;
+
+	// allocate a buffer to read the data into
+	read_buf = malloc(request->count);
+	if (read_buf == NULL) {
+		DEBUG("malloc failed\n");
+		bytes_read = -ENOMEM;
+		goto read_respond;
+	}
+
+	// read data into buffer
+	bytes_read = _nvp_PREAD(request->fd, read_buf, request->count, request->offset);
+	if (bytes_read < 0) {
+		goto read_respond;
+	}
+
+read_respond:
+	// construct a response indicating return value
+	response.type = READ;
+	response.fd = request->fd;
+	response.return_value = bytes_read;
+	ret = write(cxn_fd, &response, sizeof(response));
+	if (ret < 0) {
+		DEBUG("error sending read response\n");
+		return ret;
+	}
+
+	if (bytes_read > 0) {
+		// then send the read data
+		ret = write(cxn_fd, read_buf, ret);
+		if (ret < 0) {
+			DEBUG("error sending read data\n");
+			return ret;
+		}
+	}
+
+	// free the buffer
+	free(read_buf);
 	return 0;
 }
 

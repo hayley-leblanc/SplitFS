@@ -17,6 +17,9 @@ size_t swap_extents(struct NVFile *nvf, int close);
 void close_cloexec_files();
 
 RETT_OPEN _nvp_OPEN(INTF_OPEN);
+RETT_PWRITE _nvp_PWRITE(INTF_PWRITE);
+RETT_PREAD _nvp_PREAD(INTF_PREAD);
+
 
 /******************* Data Structures ********************/
 
