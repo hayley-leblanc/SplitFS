@@ -12,7 +12,11 @@ enum remote_request_type {
     READ = 0,
     WRITE,
     CREATE,
+<<<<<<< HEAD
     CLOSE,
+=======
+    CLOSE
+>>>>>>> cabd92c60345c60be250015ac329dd81ff6646eb
 };
 
 #define MAX_FILENAME_LEN 256 // maximum filename size in ext4

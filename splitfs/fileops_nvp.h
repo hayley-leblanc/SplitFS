@@ -19,6 +19,7 @@ void close_cloexec_files();
 RETT_OPEN _nvp_OPEN(INTF_OPEN);
 RETT_PWRITE _nvp_PWRITE(INTF_PWRITE);
 RETT_PREAD _nvp_PREAD(INTF_PREAD);
+RETT_CLOSE _nvp_CLOSE(INTF_CLOSE);
 
 
 /******************* Data Structures ********************/

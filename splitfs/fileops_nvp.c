@@ -3436,7 +3436,6 @@ RETT_PWRITE write_to_file_mmap(int file,
 		len_to_read);
 
 	SANITYCHECK(len_to_read + offset <= nvf->node->length);
-
 	read_count = 0;
 
 	/*

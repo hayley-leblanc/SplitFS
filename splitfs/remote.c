@@ -8,10 +8,12 @@
 #include "remote.h"
 #include "fileops_nvp.h"
 
-void server_listen(int sock_fd);
+void server_listen(int sock_fd, struct addrinfo *addr_info);
 int remote_create(struct remote_request *request);
 int remote_write(struct remote_request *request);
 int remote_read(struct remote_request *request);
+int remote_close(struct remote_request *request);
+int set_up_listen(int sock_fd, struct addrinfo *addr_info);
 
 void server_thread_start(void *arg) {
     int accept_socket, sock_fd, res;
@@ -73,39 +75,74 @@ void server_thread_start(void *arg) {
 		assert(0);
 	}
 
+	// // set up socket to listen for connections
+	// res = listen(sock_fd, 2);
+	// if (res < 0) {
+	// 	// perror("listen");
+	// 	DEBUG("listen failed: %s\n", strerror(errno));
+	// 	// return ret;
+	// 	assert(0);
+	// }
+
+	// // wait for someone to connect and accept when they do
+	// DEBUG("waiting for connections\n");
+	// accept_socket = accept(sock_fd, result->ai_addr, &result->ai_addrlen);
+	// if (accept_socket < 0) {
+	// 	DEBUG("accept failed: %s\n", strerror(errno));
+	// 	// return accept_socket;
+	// 	assert(0);
+	// }
+
+	// freeaddrinfo(result);
+
+	accept_socket = set_up_listen(sock_fd, result);
+
+	// TODO: close these later when we won't need them anymore
+	// _hub_find_fileop("posix")->CLOSE(sock_fd); // I think we can close this one here?
+	// _hub_find_fileop("posix")->CLOSE(accept_socket); // I think we want to save this one and close it later?
+	cxn_fd = accept_socket;
+
+    server_listen(sock_fd, result);
+	
+	// TODO: free addr info structs when we are all done and quitting the program
+}
+
+int set_up_listen(int sock_fd, struct addrinfo *addr_info) {
+	struct timeval timeout;
+	timeout.tv_sec = 3; // the actual timeout should probably be very high
+						// to account for situations where the client is still running 
+						// but not sending any messages
+	timeout.tv_usec = 0;
+
 	// set up socket to listen for connections
-	res = listen(sock_fd, 2);
+	int res = listen(sock_fd, 2);
 	if (res < 0) {
-		// perror("listen");
 		DEBUG("listen failed: %s\n", strerror(errno));
-		// return ret;
-		assert(0);
+		return res;
 	}
 
 	// wait for someone to connect and accept when they do
 	DEBUG("waiting for connections\n");
-	accept_socket = accept(sock_fd, result->ai_addr, &result->ai_addrlen);
+	int accept_socket = accept(sock_fd, addr_info->ai_addr, &addr_info->ai_addrlen);
 	if (accept_socket < 0) {
 		DEBUG("accept failed: %s\n", strerror(errno));
-		// return accept_socket;
-		assert(0);
+		return accept_socket;
 	}
 
-	freeaddrinfo(result);
+	res = setsockopt(accept_socket, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
+	if (res < 0) {
+		DEBUG("setsockopt failed\n");
+		return res;
+	}
 
-	// TODO: close these later when we won't need them anymore
-	_hub_find_fileop("posix")->CLOSE(sock_fd); // I think we can close this one here?
-	// _hub_find_fileop("posix")->CLOSE(accept_socket); // I think we want to save this one and close it later?
-	cxn_fd = accept_socket;
-
-    server_listen(cxn_fd);
+	return accept_socket;
 }
 
 // waits in a loop for messages from the client process.
 // TODO: if the client disconnects, we should free connection resources and then
 // wait for a new client to connect
 // TODO: in the future if we are monitoring multiple file descriptors, use select()
-void server_listen(int sock_fd) {
+void server_listen(int sock_fd, struct addrinfo *addr_info) {
     int request_size = sizeof(struct remote_request);
     struct remote_request *request;
     char request_buffer[request_size];
@@ -113,25 +150,39 @@ void server_listen(int sock_fd) {
     int cur_index = 0;
         
     while(1) {
-        // DEBUG("waiting for message from client\n");
-		bytes_read = read_from_socket(sock_fd, request_buffer, request_size);
+        DEBUG("waiting for message from client\n");
+		bytes_read = read_from_socket(cxn_fd, request_buffer, request_size);
 		if (bytes_read < request_size) {
 			DEBUG("read %d bytes\n", bytes_read);
 			DEBUG("read failed, client is disconnected\n");
-			_hub_find_fileop("posix")->CLOSE(sock_fd); 
-			assert(0); // TODO: better error handling
+			_hub_find_fileop("posix")->CLOSE(cxn_fd); 
+			// assert(0); // TODO: better error handling
 			// TODO: if the client disconnects, go back and wait for another one to connect
+
+			// wait for another client to connect 
+			cxn_fd = set_up_listen(sock_fd, addr_info);
 		}
 		request = (struct remote_request*)request_buffer;
 		switch(request->type) {
 			case CREATE:
+				DEBUG("serving create request\n");
 				remote_create(request);
+				DEBUG("done serving create\n");
 				break;
 			case WRITE:
+				DEBUG("serving write request\n");
 				remote_write(request);
+				DEBUG("done serving write\n");
 				break;
 			case READ:
+				DEBUG("serving read request\n");
 				remote_read(request);
+				DEBUG("done serving read\n");
+				break;
+			case CLOSE:
+				DEBUG("serving close request\n");
+				remote_close(request);
+				DEBUG("done serving close\n");
 				break;
 		}
     }
@@ -234,6 +285,28 @@ read_respond:
 	// free the buffer
 	free(read_buf);
 	return 0;
+}
+
+int remote_close(struct remote_request *request) {
+	struct remote_response response;
+	int ret;
+
+	ret = _nvp_CLOSE(request->fd);
+	if (ret < 0) {
+		DEBUG("error closing fd %d\n", request->fd);
+	}
+
+	response.type = CLOSE;
+	response.fd = request->fd;
+	response.return_value = ret;
+	ret = write(cxn_fd, &response, sizeof(response));
+	if (ret < 0) {
+		DEBUG("error sending close response\n");
+		return ret;
+	}
+
+	return 0;
+
 }
 
 int read_from_socket(int sock, void *buf, size_t len) {
