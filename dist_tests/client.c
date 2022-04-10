@@ -24,12 +24,13 @@ int main(void) {
 		return ret;
 	}
 
-	// close(fd);
 	ret = pread(fd, read_buf, 16, 0);
 	if (ret < 0) {
 		perror("read");
 		return ret;
 	}
+
+	close(fd);
 
 	printf("DATA READ FROM REMOTE SERVER: %s\n", read_buf);
 

@@ -4862,6 +4862,32 @@ RETT_CLOSE _nvp_CLOSE(INTF_CLOSE)
 	GLOBAL_LOCK_WR();
 	DEBUG("_nvp_CLOSE(%i)\n", file);
 
+#if CLIENT 
+	DEBUG("sending close request to server for fd %d\n", file);
+	struct remote_request request;
+	memset(&request, 0, sizeof(struct remote_request));
+	request.type = CLOSE;
+	request.fd = file;
+
+	int ret = write(cxn_fd, &request, sizeof(request));
+	if (ret < sizeof(request)) {
+		DEBUG("failed or partial write sending write request\n");
+		return -1;
+	}
+
+	struct remote_response close_response;
+	memset(&close_response, 0, sizeof(close_response));
+	int bytes_read = read_from_socket(cxn_fd, &close_response, sizeof(close_response));
+	if (bytes_read < sizeof(close_response)) {
+		DEBUG("failed or partial read\n");
+		return -1;
+	}
+	if (close_response.return_value < 0) {
+		DEBUG("server failed processing close\n");
+	}
+	return close_response.return_value;
+#endif 
+
 #if PASS_THROUGH_CALLS
 	num_close++;
 	result = _nvp_fileops->CLOSE(CALL_CLOSE);
