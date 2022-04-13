@@ -12,6 +12,7 @@ void server_listen(int sock_fd, struct addrinfo *addr_info);
 int remote_create(struct remote_request *request);
 int remote_write(struct remote_request *request);
 int remote_read(struct remote_request *request);
+int remote_open(struct remote_request *request);
 int remote_close(struct remote_request *request);
 int set_up_listen(int sock_fd, struct addrinfo *addr_info);
 
@@ -149,15 +150,20 @@ void server_listen(int sock_fd, struct addrinfo *addr_info) {
 				remote_create(request);
 				DEBUG("done serving create\n");
 				break;
-			case WRITE:
+			case PWRITE:
 				DEBUG("serving write request\n");
 				remote_write(request);
 				DEBUG("done serving write\n");
 				break;
-			case READ:
+			case PREAD:
 				DEBUG("serving read request\n");
 				remote_read(request);
 				DEBUG("done serving read\n");
+				break;
+			case OPEN:
+				DEBUG("serving open request\n");
+				remote_open(request);
+				DEBUG("done serving open\n");
 				break;
 			case CLOSE:
 				DEBUG("serving close request\n");
@@ -211,7 +217,7 @@ int remote_write(struct remote_request *request) {
 	// send back a response with the error code
 write_respond:
 	free(write_buf);
-	response.type = WRITE;
+	response.type = PWRITE;
 	response.fd = request->fd;
 	response.return_value = ret;
 	ret = write(cxn_fd, &response, sizeof(response));
@@ -244,7 +250,7 @@ int remote_read(struct remote_request *request) {
 
 read_respond:
 	// construct a response indicating return value
-	response.type = READ;
+	response.type = PREAD;
 	response.fd = request->fd;
 	response.return_value = bytes_read;
 	ret = write(cxn_fd, &response, sizeof(response));
@@ -255,15 +261,37 @@ read_respond:
 
 	if (bytes_read > 0) {
 		// then send the read data
-		ret = write(cxn_fd, read_buf, ret);
+		ret = write(cxn_fd, read_buf, bytes_read);
 		if (ret < 0) {
 			DEBUG("error sending read data\n");
 			return ret;
 		}
 	}
+	DEBUG("sent %d bytes to client\n", ret);
 
 	// free the buffer
 	free(read_buf);
+	return 0;
+}
+
+int remote_open(struct remote_request *request) {
+	struct remote_response response;
+	int ret;
+
+	ret = _nvp_OPEN(request->file_path, request->flags, request->mode);
+	if (ret < 0) {
+		DEBUG("error opening file %d\n", request->file_path);
+	}
+
+	response.type = CLOSE;
+	response.fd = ret;
+	response.return_value = ret;
+	ret = write(cxn_fd, &response, sizeof(response));
+	if (ret < 0) {
+		DEBUG("error sending open response\n");
+		return ret;
+	}
+
 	return 0;
 }
 
@@ -279,14 +307,14 @@ int remote_close(struct remote_request *request) {
 	response.type = CLOSE;
 	response.fd = request->fd;
 	response.return_value = ret;
-	ret = write(cxn_fd, &response, sizeof(response));
+	DEBUG("sending %d bytes to the client\n", sizeof(struct remote_response));
+	ret = write(cxn_fd, &response, sizeof(struct remote_response));
 	if (ret < 0) {
 		DEBUG("error sending close response\n");
 		return ret;
 	}
 
 	return 0;
-
 }
 
 int read_from_socket(int sock, void *buf, size_t len) {

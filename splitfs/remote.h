@@ -9,9 +9,10 @@ int read_from_socket(int sock, void* buf, size_t len);
 
 // enum for request types. add to this to add new operations
 enum remote_request_type {
-    READ = 0,
-    WRITE,
+    PREAD = 0,
+    PWRITE,
     CREATE,
+    OPEN,
     CLOSE
 };
 
