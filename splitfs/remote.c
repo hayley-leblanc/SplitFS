@@ -75,26 +75,6 @@ void server_thread_start(void *arg) {
 		assert(0);
 	}
 
-	// // set up socket to listen for connections
-	// res = listen(sock_fd, 2);
-	// if (res < 0) {
-	// 	// perror("listen");
-	// 	DEBUG("listen failed: %s\n", strerror(errno));
-	// 	// return ret;
-	// 	assert(0);
-	// }
-
-	// // wait for someone to connect and accept when they do
-	// DEBUG("waiting for connections\n");
-	// accept_socket = accept(sock_fd, result->ai_addr, &result->ai_addrlen);
-	// if (accept_socket < 0) {
-	// 	DEBUG("accept failed: %s\n", strerror(errno));
-	// 	// return accept_socket;
-	// 	assert(0);
-	// }
-
-	// freeaddrinfo(result);
-
 	accept_socket = set_up_listen(sock_fd, result);
 
 	// TODO: close these later when we won't need them anymore
