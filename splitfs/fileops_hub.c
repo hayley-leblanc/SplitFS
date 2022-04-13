@@ -644,6 +644,7 @@ RETT_OPEN _hub_OPEN(INTF_OPEN)
 	int access_result;
 
 	DEBUG("_hub_OPEN = %s\n", path);
+
 	access_result = access(path, F_OK);
 	/**
 	 * We need to check if 'path' is a valid pointer, but not crash it 
@@ -684,7 +685,7 @@ RETT_OPEN _hub_OPEN(INTF_OPEN)
 		goto opening;
 	}
 	*/
-		
+#if !CLIENT 
 	if(access_result)
 	{		
 		if(FLAGS_INCLUDE(oflag, O_CREAT)) {
@@ -723,6 +724,7 @@ RETT_OPEN _hub_OPEN(INTF_OPEN)
 		}
 
 	}
+#endif
 
 
 	// op_to_use = _hub_managed_fileops;
