@@ -17,7 +17,7 @@ int main(void) {
 
 	printf("fd: %d\n", fd);
 
-	int ret = write(fd, write_buf, strlen(write_buf));
+	int ret = pwrite(fd, write_buf, strlen(write_buf), 0);
 	if (ret < 0) {
 		perror("write");
 		// close(fd);

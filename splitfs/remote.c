@@ -149,12 +149,12 @@ void server_listen(int sock_fd, struct addrinfo *addr_info) {
 				remote_create(request);
 				DEBUG("done serving create\n");
 				break;
-			case WRITE:
+			case PWRITE:
 				DEBUG("serving write request\n");
 				remote_write(request);
 				DEBUG("done serving write\n");
 				break;
-			case READ:
+			case PREAD:
 				DEBUG("serving read request\n");
 				remote_read(request);
 				DEBUG("done serving read\n");
@@ -211,7 +211,7 @@ int remote_write(struct remote_request *request) {
 	// send back a response with the error code
 write_respond:
 	free(write_buf);
-	response.type = WRITE;
+	response.type = PWRITE;
 	response.fd = request->fd;
 	response.return_value = ret;
 	ret = write(cxn_fd, &response, sizeof(response));
@@ -244,7 +244,7 @@ int remote_read(struct remote_request *request) {
 
 read_respond:
 	// construct a response indicating return value
-	response.type = READ;
+	response.type = PREAD;
 	response.fd = request->fd;
 	response.return_value = bytes_read;
 	ret = write(cxn_fd, &response, sizeof(response));
