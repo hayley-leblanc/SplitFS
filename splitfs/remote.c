@@ -17,7 +17,7 @@ int remote_close(struct remote_request *request);
 int set_up_listen(int sock_fd, struct addrinfo *addr_info);
 
 void server_thread_start(void *arg) {
-    int accept_socket, sock_fd, res;
+    int accept_socket, sock_fd, ret;
     struct addrinfo hints;
 	struct addrinfo *result, *rp;
 	char* server_port = "4444";
@@ -47,8 +47,8 @@ void server_thread_start(void *arg) {
 	hints.ai_addr = NULL;
 	hints.ai_next = NULL;
 
-	res = getaddrinfo(NULL, server_port, &hints, &result);
-	if (res < 0) {
+	ret = getaddrinfo(NULL, server_port, &hints, &result);
+	if (ret < 0) {
 		DEBUG("getaddrinfo\n");
 		assert(0);
 	}
@@ -60,28 +60,32 @@ void server_thread_start(void *arg) {
 	}
 
 	// allow socket to be reused to avoid problems with binding in the future
-	res = setsockopt(sock_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
-	if (res < 0) {
+	ret = setsockopt(sock_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+	if (ret < 0) {
 		DEBUG("setsockopt failed: %s\n", strerror(errno));
 		// return res;
 		assert(0);
 	}
 
 	// bind the socket to the local address and port so we can accept connections on it
-	// res = bind(sock_fd, (struct sockaddr*)&my_addr, addrlen);
-	res = bind(sock_fd, result->ai_addr, result->ai_addrlen);
-	if (res < 0) {
+	// ret = bind(sock_fd, (struct sockaddr*)&my_addr, addrlen);
+	ret = bind(sock_fd, result->ai_addr, result->ai_addrlen);
+	if (ret < 0) {
 		DEBUG("bind failed: %s\n", strerror(errno));
 		// return ret;
 		assert(0);
 	}
 
-	accept_socket = set_up_listen(sock_fd, result);
+	ret = set_up_listen(sock_fd, result);
+	if (ret < 0) {
+		DEBUG("set up listen failed\n");
+		assert(0);
+	}
 
 	// TODO: close these later when we won't need them anymore
 	// _hub_find_fileop("posix")->CLOSE(sock_fd); // I think we can close this one here?
 	// _hub_find_fileop("posix")->CLOSE(accept_socket); // I think we want to save this one and close it later?
-	cxn_fd = accept_socket;
+	// cxn_fd = accept_socket;
 
     server_listen(sock_fd, result);
 	
@@ -90,33 +94,34 @@ void server_thread_start(void *arg) {
 
 int set_up_listen(int sock_fd, struct addrinfo *addr_info) {
 	struct timeval timeout;
+	int ret;
 	timeout.tv_sec = 3; // the actual timeout should probably be very high
 						// to account for situations where the client is still running 
 						// but not sending any messages
 	timeout.tv_usec = 0;
 
 	// set up socket to listen for connections
-	int res = listen(sock_fd, 2);
-	if (res < 0) {
+	ret = listen(sock_fd, 2);
+	if (ret < 0) {
 		DEBUG("listen failed: %s\n", strerror(errno));
-		return res;
+		return ret;
 	}
 
 	// wait for someone to connect and accept when they do
 	DEBUG("waiting for connections\n");
-	int accept_socket = accept(sock_fd, addr_info->ai_addr, &addr_info->ai_addrlen);
-	if (accept_socket < 0) {
+	cxn_fd = accept(sock_fd, addr_info->ai_addr, &addr_info->ai_addrlen);
+	if (cxn_fd < 0) {
 		DEBUG("accept failed: %s\n", strerror(errno));
-		return accept_socket;
+		return cxn_fd;
 	}
 
-	res = setsockopt(accept_socket, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
-	if (res < 0) {
+	ret = setsockopt(cxn_fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(struct timeval));
+	if (ret < 0) {
 		DEBUG("setsockopt failed\n");
-		return res;
+		return ret;
 	}
 
-	return accept_socket;
+	return 0;
 }
 
 // waits in a loop for messages from the client process.
@@ -127,7 +132,7 @@ void server_listen(int sock_fd, struct addrinfo *addr_info) {
     int request_size = sizeof(struct remote_request);
     struct remote_request *request;
     char request_buffer[request_size];
-    int bytes_read;
+    int bytes_read, ret;
     int cur_index = 0;
         
     while(1) {
@@ -141,7 +146,11 @@ void server_listen(int sock_fd, struct addrinfo *addr_info) {
 			// TODO: if the client disconnects, go back and wait for another one to connect
 
 			// wait for another client to connect 
-			cxn_fd = set_up_listen(sock_fd, addr_info);
+			ret = set_up_listen(sock_fd, addr_info);
+			if (ret < 0) {
+				DEBUG("set up listen failed\n");
+				assert(0);
+			}
 		}
 		request = (struct remote_request*)request_buffer;
 		switch(request->type) {
@@ -326,7 +335,7 @@ int read_from_socket(int sock, void *buf, size_t len) {
 	int cur_index = bytes_read;
 	while (cur_index < len) {
 		bytes_read = read(sock, buf+cur_index, len-cur_index);
-		if (bytes_read < 0) {
+		if (bytes_read <= 0) {
 			DEBUG("read failed\n");
 			return bytes_read;
 		}
