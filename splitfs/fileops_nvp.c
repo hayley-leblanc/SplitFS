@@ -18,6 +18,8 @@
 #include <netdb.h>
 #include <pthread.h>
 
+#include <zookeeper/zookeeper.h>
+
 #include "perfcount.h"
 
 #include "non_temporal.h"
@@ -31,6 +33,10 @@
 #include "log.h"
 #include "tbl_mmaps.h"
 #include "remote.h"
+
+// watcher callback function
+void watcher(zhandle_t *zzh, int type, int state, const char *path,
+             void *watcherCtx) {}
 
 
 BOOST_PP_SEQ_FOR_EACH(DECLARE_WITHOUT_ALIAS_FUNCTS_IWRAP, _nvp_, ALLOPS_WPAREN)
@@ -63,7 +69,7 @@ MODULE_REGISTRATION_F("nvp", _nvp_, _nvp_init2(); );
 #define NVP_WRAP_NO_FD_IWRAP(r, data, elem) NVP_WRAP_NO_FD(elem)
 
 // BOOST_PP_SEQ_FOR_EACH(NVP_WRAP_HAS_FD_IWRAP, placeholder, (ACCEPT))
-BOOST_PP_SEQ_FOR_EACH(NVP_WRAP_NO_FD_IWRAP, placeholder, (PIPE) (FORK) (VFORK) (CREAT))
+BOOST_PP_SEQ_FOR_EACH(NVP_WRAP_NO_FD_IWRAP, placeholder, (FORK) (VFORK) (CREAT))
 
 
 /* ============================= memcpy =============================== */
@@ -905,6 +911,8 @@ void nvp_cleanup(void)
 	pthread_join(server_thread, NULL);
 	DEBUG("closing remote connection file descriptor %d\n", cxn_fd);
 	_hub_find_fileop("posix")->CLOSE(cxn_fd);
+	zookeeper_close(zh);
+	DEBUG("closed connection to zookeeper\n");
 #endif 
 
 #if BG_CLOSING
@@ -1568,6 +1576,7 @@ void _nvp_init2(void)
 	struct addrinfo *result, *rp;
 	int sock_fd;
 	char* server_port = "4444";
+	char* zookeeper_port = "5555";
 	int error = 0;
 	int res;
 	int opt = 1;
@@ -1584,12 +1593,30 @@ void _nvp_init2(void)
 #if CLIENT
 	hints.ai_flags = 0;
 
-	DEBUG("connecting to server\n");
+	char addr_buf[64];
 
+	
 	// TODO: get server IP (and port?) in some other way
 	// probably look them up from a configuration file
 	char* server_ip = "10.56.0.253";
-	
+
+	strcpy(addr_buf, server_ip);
+	strcat(addr_buf, ":");
+	strcat(addr_buf, zookeeper_port);
+	DEBUG("zookeeper addr and port: %s\n", addr_buf);
+
+	DEBUG("connecting to zookeeper\n");
+	zoo_deterministic_conn_order(1);
+	zh = zookeeper_init(addr_buf, watcher, 10000, 0, 0, 0);
+    if (!zh) {
+        perror("zookeeper_init");
+        // return errno;
+		assert(0);
+    }
+
+	DEBUG("connected to zookeeper\n");
+
+	DEBUG("connecting to server\n");
 	// getaddrinfo is a system call that, given an IP address, a port,
 	// and some additional info about the desired connection, 
 	// returns structure(s) that can be used to establish network 

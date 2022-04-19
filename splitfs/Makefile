@@ -33,7 +33,7 @@ sofiles: $(COMMON_OBJ) $(NVP_SOFILES)
 
 # The only .so which doesn't follow the naming convention for its underlying file.
 libnvp.so: fileops_hub.o $(COMMON_OBJ)
-	$(CC) $(CLFAGS) -shared -Wl,-soname,$@ -o $@ $^ -ldl -funroll-loops -L. -lrt
+	$(CC) $(CLFAGS) -shared -Wl,-soname,$@ -o $@ $^ -ldl -funroll-loops -L. -lrt -L/usr/local/lib -lzookeeper_mt -DTHREADED
 
 # Lives in a different directory.
 #libmoneta.so:

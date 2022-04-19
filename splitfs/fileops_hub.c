@@ -403,15 +403,15 @@ int hub_check_resolve_fileops(char* tree)
 		return result;						\
 	}
 
-#define HUB_WRAP_PIPE()					\
-	RETT_PIPE _hub_PIPE(INTF_PIPE) {		\
-		int result = 0;				\
-		HUB_CHECK_RESOLVE_FILEOPS(_hub_, op);	\
-		result = _hub_fileops->PIPE(CALL_PIPE);	\
-		_hub_fd_lookup[file[0]] = _hub_fileops;	\
-		_hub_fd_lookup[file[1]] = _hub_fileops;	\
-		return result;				\
-	}
+// #define HUB_WRAP_PIPE()					\
+// 	RETT_PIPE _hub_PIPE(INTF_PIPE) {		\
+// 		int result = 0;				\
+// 		HUB_CHECK_RESOLVE_FILEOPS(_hub_, op);	\
+// 		result = _hub_fileops->PIPE(CALL_PIPE);	\
+// 		_hub_fd_lookup[file[0]] = _hub_fileops;	\
+// 		_hub_fd_lookup[file[1]] = _hub_fileops;	\
+// 		return result;				\
+// 	}
 
 // #define HUB_WRAP_SOCKET()						\
 // 	RETT_SOCKETPAIR _hub_SOCKETPAIR(INTF_SOCKETPAIR) {		\
@@ -441,12 +441,12 @@ BOOST_PP_SEQ_FOR_EACH(HUB_WRAP_HAS_FP_IWRAP, placeholder, FILEOPS_WITH_FP)
 
 #define HUB_WRAP_HAS_FD_IWRAP(r, data, elem) HUB_WRAP_HAS_FD(elem)
 #define HUB_WRAP_NO_FD_IWRAP(r, data, elem) HUB_WRAP_NO_FD(elem)
-#define HUB_WRAP_PIPE_IWRAP(r, data, elem) HUB_WRAP_PIPE()
+// #define HUB_WRAP_PIPE_IWRAP(r, data, elem) HUB_WRAP_PIPE()
 // #define HUB_WRAP_SOCKET_IWRAP(r, data, elem) HUB_WRAP_SOCKET()
 
 BOOST_PP_SEQ_FOR_EACH(HUB_WRAP_HAS_FD_IWRAP, placeholder, FILEOPS_WITH_FD)
 BOOST_PP_SEQ_FOR_EACH(HUB_WRAP_NO_FD_IWRAP, placeholder, FILEOPS_WITHOUT_FD)
-BOOST_PP_SEQ_FOR_EACH(HUB_WRAP_PIPE_IWRAP, placeholder, FILEOPS_PIPE)
+// BOOST_PP_SEQ_FOR_EACH(HUB_WRAP_PIPE_IWRAP, placeholder, FILEOPS_PIPE)
 // BOOST_PP_SEQ_FOR_EACH(HUB_WRAP_SOCKET_IWRAP, placeholder, FILEOPS_SOCKET)
 
 void _hub_resolve_all_fileops(char* tree)

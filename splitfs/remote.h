@@ -1,8 +1,12 @@
 #ifndef REMOTE_H
 #define REMOTE_H
 
+#include <zookeeper/zookeeper.h>
+
 int cxn_fd;
 pthread_t server_thread;
+
+static zhandle_t *zh;
 
 void server_thread_start(void *arg);
 int read_from_socket(int sock, void* buf, size_t len);
