@@ -4,7 +4,7 @@
 ## Building and installing Zookeeper
 Run the following commands
 ```
-sudo apt install maven libcppunit-dev default-jre default-jdk
+sudo apt install maven libcppunit-dev default-jre default-jdk libconfig-dev
 
 export JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64/
 
