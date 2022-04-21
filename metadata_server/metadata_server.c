@@ -2,6 +2,7 @@
 #include <string.h>
 
 #include "metadata_server.h"
+#include "../splitfs/remote.h"
 
 
 int main() {
@@ -16,105 +17,3 @@ int main() {
     return 0;
 }
 
-int parse_config(struct config_options *conf_opts) {
-    FILE* conf_file;
-    char buf[BUFFER_SIZE];
-    char ip_buffer[BUFFER_SIZE];
-    int len, i;
-
-    conf_file = fopen(CONFIG_PATH, "r");
-    if (conf_file == NULL) {
-        perror("fopen");
-        return -1;
-    }
-
-    memset(ip_buffer, 0, BUFFER_SIZE);
-
-    while (fgets(buf, BUFFER_SIZE, conf_file)) {
-        memset(ip_buffer, 0, BUFFER_SIZE);
-        if (strncmp(buf, "metadata_server_ips", strlen("metadata_server_ips")) == 0) {
-            len = strlen("metadata_server_ips");
-            strncpy(ip_buffer, buf+len+1, BUFFER_SIZE-(len+1));
-            parse_comma_separated(ip_buffer, conf_opts->metadata_server_ips);
-        } else if (strncmp(buf, "metadata_server_port", strlen("metadata_server_port")) == 0) {
-            len = strlen("metadata_server_port");
-            strncpy(conf_opts->metadata_server_port, buf+len+1, 8);
-            for (i = 0; i < 8; i++) {
-                if (conf_opts->metadata_server_port[i] == ';') {
-                    conf_opts->metadata_server_port[i] = '\0';
-                }
-            }
-        } else if (strncmp(buf, "splitfs_server_ips", strlen("splitfs_server_ips")) == 0) {
-            len = strlen("splitfs_server_ips");
-            strncpy(ip_buffer, buf+len+1, BUFFER_SIZE-(len+1));
-            parse_comma_separated(ip_buffer, conf_opts->splitfs_server_ips);
-        } else if (strncmp(buf, "splitfs_server_port", strlen("splitfs_server_port")) == 0) {
-            len = strlen("splitfs_server_port");
-            strncpy(conf_opts->splitfs_server_port, buf+len+1, 8);
-            for (i = 0; i < 8; i++) {
-                if (conf_opts->splitfs_server_port[i] == ';') {
-                    conf_opts->splitfs_server_port[i] = '\0';
-                }
-            }
-        } else if (strncmp(buf, "zookeeper_ips", strlen("zookeeper_ips")) == 0) {
-            len = strlen("zookeeper_ips");
-            strncpy(ip_buffer, buf+len+1, BUFFER_SIZE-(len+1));
-            parse_comma_separated(ip_buffer, conf_opts->zookeeper_ips);
-        } else if (strncmp(buf, "zookeeper_port", strlen("zookeeper_port")) == 0) {
-            len = strlen("zookeeper_port");
-            strncpy(conf_opts->zookeeper_port, buf+len+1, 8);
-            for (i = 0; i < 8; i++) {
-                if (conf_opts->zookeeper_port[i] == ';') {
-                    conf_opts->zookeeper_port[i] = '\0';
-                }
-            }
-        }
-    }
-
-    // print config options
-    printf("CONFIGURATION OPTIONS:\n");
-    printf("metadata server ips: ");
-    for (int i = 0; i < 8; i++) {
-        if (conf_opts->metadata_server_ips[i][0] != '\0') {
-            printf("%s ", conf_opts->metadata_server_ips[i]);
-        }
-    }
-    printf("\n");
-    printf("metadata server port: %s\n", conf_opts->metadata_server_port);
-
-    printf("splitfs server ips: ");
-    for (int i = 0; i < 8; i++) {
-        if (conf_opts->splitfs_server_ips[i][0] != '\0') {
-            printf("%s ", conf_opts->splitfs_server_ips[i]);
-        }
-    }
-    printf("\n");
-    printf("splitfs server port: %s\n", conf_opts->splitfs_server_port);
-
-    printf("zookeeper server ips: ");
-    for (int i = 0; i < 8; i++) {
-        if (conf_opts->zookeeper_ips[i][0] != '\0') {
-            printf("%s ", conf_opts->zookeeper_ips[i]);
-        }
-    }
-    printf("\n");
-    printf("zookeeper port: %s\n", conf_opts->zookeeper_port);
-
-    fclose(conf_file);
-    return 0;
-}
-
-void parse_comma_separated(char *ip_buffer, char ips[8][16]) {
-    int i, j = 0, current_ip_index = 0;
-    for (i = 0; i < 8; i++) {
-        memset(ips[i], 0, 16);
-    }
-
-    for (i = 0; i < strlen(ip_buffer); i++) {
-        if (ip_buffer[i] == ',' || ip_buffer[i] == ';') {
-            strncpy(ips[current_ip_index], ip_buffer+j, i-j);
-            current_ip_index++;
-            j += i+1;
-        }
-    }
-}

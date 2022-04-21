@@ -15,6 +15,8 @@ sqlite3-trace/.libs
 *cscope*
 a.out
 
+zookeeper/logs/
+
 rsync/workload/
 rsync/rsync
 tar/workload/
