@@ -1575,8 +1575,7 @@ void _nvp_init2(void)
 	struct addrinfo hints;
 	struct addrinfo *result, *rp;
 	int sock_fd;
-	char* server_port = "4444";
-	char* zookeeper_port = "5555";
+	struct config_options conf_opts;
 	int error = 0;
 	int res;
 	int opt = 1;
@@ -1595,14 +1594,18 @@ void _nvp_init2(void)
 
 	char addr_buf[64];
 
-	
-	// TODO: get server IP (and port?) in some other way
-	// probably look them up from a configuration file
-	char* server_ip = "10.56.0.253";
+	res = parse_config(&conf_opts, "config");
+	if (res < 0) {
+		DEBUG("failed reading config\n");
+		assert(0);
+	}
+	DEBUG("parsed configs\n");
 
-	strcpy(addr_buf, server_ip);
+
+	// TODO: handle more than one zookeeper IP
+	strcpy(addr_buf, conf_opts.zookeeper_ips[0]);
 	strcat(addr_buf, ":");
-	strcat(addr_buf, zookeeper_port);
+	strcat(addr_buf, conf_opts.zookeeper_port);
 	DEBUG("zookeeper addr and port: %s\n", addr_buf);
 
 	DEBUG("connecting to zookeeper\n");
@@ -1621,7 +1624,8 @@ void _nvp_init2(void)
 	// and some additional info about the desired connection, 
 	// returns structure(s) that can be used to establish network 
 	// connections with another machine
-	res = getaddrinfo(server_ip, server_port, &hints, &result);
+	// TODO: handle more than one server IP
+	res = getaddrinfo(conf_opts.splitfs_server_ips[0], conf_opts.splitfs_server_port, &hints, &result);
 	if (res != 0) {
 		DEBUG("getaddrinfo failed: %s\n", strerror(errno));
 		assert(0);
@@ -1638,7 +1642,7 @@ void _nvp_init2(void)
 	// connect() system call connects a socket to an address
 	res = connect(sock_fd, result->ai_addr, result->ai_addrlen);
 	if (res != -1) {
-		DEBUG("You are now connected to IP %s, port %s\n", server_ip, server_port);
+		DEBUG("You are now connected to IP %s, port %s\n", conf_opts.splitfs_server_ips[0], conf_opts.splitfs_server_port);
 	} else {
 		DEBUG("unable to connect\n");
 		error = errno;

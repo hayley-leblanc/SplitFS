@@ -434,7 +434,7 @@ int parse_config(struct config_options *conf_opts, char* config_path) {
     printf("\n");
     printf("zookeeper port: %s\n", conf_opts->zookeeper_port);
 
-    fclose(conf_file);
+    _hub_find_fileop("posix")->FCLOSE(conf_file);
     return 0;
 }
 
