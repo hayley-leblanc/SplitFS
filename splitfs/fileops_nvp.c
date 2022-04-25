@@ -1619,6 +1619,31 @@ void _nvp_init2(void)
 
 	DEBUG("connected to zookeeper\n");
 
+	DEBUG("connecting to metadata server\n");
+	res = getaddrinfo(conf_opts.metadata_server_ips[0], conf_opts.metadata_client_port, &hints, &result);
+	if (res != 0) {
+		DEBUG("getaddrinfo failed: %s\n", strerror(errno));
+		assert(0);
+	}
+
+	// socket() creates a network endpoint and returns a file descriptor
+	// that can be used to access that endpoint
+	sock_fd = socket(result->ai_family, result->ai_socktype, result->ai_protocol);
+	if (sock_fd < 0) {
+		DEBUG("bad socket\n");
+		assert(0);
+	}
+
+	// connect() system call connects a socket to an address
+	res = connect(sock_fd, result->ai_addr, result->ai_addrlen);
+	if (res != -1) {
+		DEBUG("You are now connected to metadata server IP %s, port %s\n", conf_opts.metadata_server_ips[0], conf_opts.metadata_client_port);
+	} else {
+		DEBUG("unable to connect\n");
+		error = errno;
+		_hub_find_fileop("posix")->CLOSE(sock_fd);
+	}
+
 	DEBUG("connecting to server\n");
 	// getaddrinfo is a system call that, given an IP address, a port,
 	// and some additional info about the desired connection, 
