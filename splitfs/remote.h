@@ -48,6 +48,7 @@ struct remote_response {
 // options read from a config file
 struct config_options {
     char metadata_server_port[8];
+    char metadata_client_port[8];
     char splitfs_server_port[8];
     char zookeeper_port[8];
     // allow up to 8 machines that may act as metadata servers,

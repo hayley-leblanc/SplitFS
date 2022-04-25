@@ -1,5 +1,6 @@
-metadata_server_ips=10.56.0.253;
+metadata_server_ips=localhost;
 metadata_server_port=7777;
+metadata_client_port=6666;
 splitfs_server_ips=10.56.0.253;
 splitfs_server_port=4444;
 zookeeper_ips=10.56.0.253;

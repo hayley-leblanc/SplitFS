@@ -50,12 +50,22 @@ void* server_thread_start(void *arg) {
 		assert(0);
 	}
 
+	// allow socket to be reused to avoid problems with binding in the future
+	ret = setsockopt(metadata_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+	if (ret < 0) {
+		DEBUG("setsockopt failed: %s\n", strerror(errno));
+		// return res;
+		assert(0);
+	}
+
 	ret = connect(metadata_fd, result->ai_addr, result->ai_addrlen);
 	if (ret != -1) {
 		DEBUG("now connected to metadata server %s port %s\n", conf_opts.metadata_server_ips[0], conf_opts.metadata_server_port);
 	} else {
+		perror("connect");
 		DEBUG("unable to connect to metadata server\n");
 		_hub_find_fileop("posix")->CLOSE(sock_fd);
+		assert(0);
 	}
 
 	DEBUG("opening connections to client\n");

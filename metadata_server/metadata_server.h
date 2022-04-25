@@ -1,6 +1,0 @@
-#ifndef METADATA_SERVER_H
-#define METADATA_SERVER_H
-
-
-
-#endif // METADATA_SERVER_H

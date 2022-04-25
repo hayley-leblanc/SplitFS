@@ -35,6 +35,14 @@ int parse_config(
                     conf_opts->metadata_server_port[i] = '\0';
                 }
             }
+        } else if (strncmp(buf, "metadata_client_port", strlen("metadata_client_port")) == 0){
+            len = strlen("metadata_client_port");
+            strncpy(conf_opts->metadata_client_port, buf+len+1, 8);
+            for (i = 0; i < 8; i++) {
+                if (conf_opts->metadata_client_port[i] == ';') {
+                    conf_opts->metadata_client_port[i] = '\0';
+                }
+            }
         } else if (strncmp(buf, "splitfs_server_ips", strlen("splitfs_server_ips")) == 0) {
             len = strlen("splitfs_server_ips");
             strncpy(ip_buffer, buf+len+1, BUFFER_SIZE-(len+1));
@@ -72,6 +80,7 @@ int parse_config(
     }
     printf("\n");
     printf("metadata server port: %s\n", conf_opts->metadata_server_port);
+    printf("metadata client port: %s\n", conf_opts->metadata_client_port);
 
     printf("splitfs server ips: ");
     for (int i = 0; i < 8; i++) {
