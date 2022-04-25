@@ -17,9 +17,10 @@ NVP_TBL_MMAP=tbl_mmaps.o
 NVP_UTILS=utils.o
 NVP_LFQUEUE=lfq.c
 REMOTE=remote.o
+NVP_SERVER=splitfs_server.o
 #NVP_STAGING_QUEUE=queue_impl.c
 
-all: sofiles $(COMMON_OBJ)
+all: sofiles $(COMMON_OBJ) metadata_server
 #$(NVP_STACK) $(NVP_LOG) $(NVP_LRU_CACHE)
 
 include common.mk
@@ -46,8 +47,8 @@ libnvp.so: fileops_hub.o $(COMMON_OBJ)
 #libfileops_nvp.so: fileops_nvp.o $(COMMON_OBJ) copy_user_nocache.o
 #	$(CC) $(CFLAGS) -shared -Wl,-soname,$@ -o $@ $< $(COMMON_OBJ) copy_user_nocache.o -ldl 
 
-libfileops_nvp.so: fileops_nvp.o $(COMMON_OBJ) $(NVP_LFQUEUE) $(NVP_UTILS) $(NVP_NON_TEMPORAL) $(NVP_DELAY) $(NVP_STACK) $(NVP_TBL_MMAP) $(NVP_LOG) $(NVP_LRU_CACHE) $(NVP_TIMER) $(REMOTE)
-	$(CC) $(CFLAGS) -shared -Wl,-soname,$@ -o $@ $< $(COMMON_OBJ) $(NVP_LFQUEUE) $(NVP_UTILS) $(NVP_NON_TEMPORAL) $(NVP_DELAY) $(NVP_STACK) $(NVP_TBL_MMAP) $(NVP_LOG) $(NVP_LRU_CACHE) $(NVP_TIMER) $(REMOTE) -ldl -funroll-loops -L. -lrt
+libfileops_nvp.so: fileops_nvp.o $(COMMON_OBJ) $(NVP_LFQUEUE) $(NVP_UTILS) $(NVP_NON_TEMPORAL) $(NVP_DELAY) $(NVP_STACK) $(NVP_TBL_MMAP) $(NVP_LOG) $(NVP_LRU_CACHE) $(NVP_TIMER) $(REMOTE) $(NVP_SERVER)
+	$(CC) $(CFLAGS) -shared -Wl,-soname,$@ -o $@ $< $(COMMON_OBJ) $(NVP_LFQUEUE) $(NVP_UTILS) $(NVP_NON_TEMPORAL) $(NVP_DELAY) $(NVP_STACK) $(NVP_TBL_MMAP) $(NVP_LOG) $(NVP_LRU_CACHE) $(NVP_TIMER) $(REMOTE) $(NVP_SERVER) -ldl -funroll-loops -L. -lrt -pthread
 
 BANKSHOT2_OBJ=nvp_printf.o fileops_bankshot2_extent.o rbtree.o
 libfileops_bankshot2.so: fileops_bankshot2.o $(BANKSHOT2_OBJ) 
@@ -58,8 +59,16 @@ lib%.so: %.o $(COMMON_OBJ)
 	$(CC) $(CFLAGS) -shared -Wl,-soname,$@ -o $@ $< $(COMMON_OBJ) -ldl
 
 memcpy.o: memcpy.c
-	$(CC) -c $< -o $@ -O4 -march=core2 -m64 -fPIC
+	$(CC) $(CFLAGS) -c $< -o $@ -O4 -march=core2 -m64 -fPIC
 
+# splitfs_server.o: fileops_nvp.c splitfs_server.c
+# 	$(CC) $(CFLAGS) $< -o $@
+
+# metadata_server.o: metadata_server.c
+# 	$(CC) $< -o $@ 
+
+metadata_server: $(REMOTE) metadata_server.o
+	$(CC) $^ -L/usr/local/lib -lzookeeper_mt -DTHREADED -o $@ -pthread
 
 #  Boring stuff  #
 

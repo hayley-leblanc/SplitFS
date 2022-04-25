@@ -1,4 +1,4 @@
-metadata_server_ips=localhost;
+metadata_server_ips=10.56.0.253;
 metadata_server_port=7777;
 splitfs_server_ips=10.56.0.253;
 splitfs_server_port=4444;

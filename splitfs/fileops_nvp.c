@@ -1594,7 +1594,7 @@ void _nvp_init2(void)
 
 	char addr_buf[64];
 
-	res = parse_config(&conf_opts, "config");
+	res = parse_config(&conf_opts, "config", _hub_find_fileop("posix")->FCLOSE, _hub_find_fileop("posix")->FOPEN);
 	if (res < 0) {
 		DEBUG("failed reading config\n");
 		assert(0);
