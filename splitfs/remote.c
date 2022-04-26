@@ -1,347 +1,120 @@
-#include "nv_common.h"
-#include <pthread.h>
 #include <string.h>
-#include <stdlib.h>
-#include <sys/socket.h>
-#include <netdb.h>
 
 #include "remote.h"
-#include "fileops_nvp.h"
 
-void server_listen(int sock_fd, struct addrinfo *addr_info);
-int remote_create(struct remote_request *request);
-int remote_write(struct remote_request *request);
-int remote_read(struct remote_request *request);
-int remote_open(struct remote_request *request);
-int remote_close(struct remote_request *request);
-int set_up_listen(int sock_fd, struct addrinfo *addr_info);
+int parse_config(
+    struct config_options *conf_opts, 
+    char* config_path, 
+    int (*fclose_fn)(FILE*),
+    FILE* (*fopen_fn)(const char*, const char*)) 
+{
+    FILE* conf_file;
+    char buf[BUFFER_SIZE];
+    char ip_buffer[BUFFER_SIZE];
+    int len, i;
 
-void server_thread_start(void *arg) {
-    int accept_socket, sock_fd, ret;
-    struct addrinfo hints;
-	struct addrinfo *result, *rp;
-	char* server_port = "4444";
-    int opt = 1;
-
-    int ip_protocol = AF_INET; // IPv4
-	int transport_protocol = SOCK_STREAM; // TCP
-
-	DEBUG("opening connections to client\n");
-	
-	// set up a socket to listen for a connection request
-	// at some point, this will have to run in the background
-	// so that the server can do other work while also listening
-	// for new requests
-	sock_fd = socket(ip_protocol, transport_protocol, 0);
-	if (sock_fd < 0) {
-		DEBUG("socket failed: %s\n", strerror(errno));
-		assert(0);
-	}
-
-	memset(&hints, 0, sizeof(hints));
-	hints.ai_family = AF_INET;
-	hints.ai_socktype = SOCK_STREAM;
-	hints.ai_flags = AI_PASSIVE;
-	hints.ai_protocol = 0;
-	hints.ai_canonname = NULL;
-	hints.ai_addr = NULL;
-	hints.ai_next = NULL;
-
-	ret = getaddrinfo(NULL, server_port, &hints, &result);
-	if (ret < 0) {
-		DEBUG("getaddrinfo\n");
-		assert(0);
-	}
-	
-	sock_fd = socket(result->ai_family, result->ai_socktype, result->ai_protocol);
-	if (sock_fd < 0) {
-		DEBUG("socket\n");
-		assert(0);
-	}
-
-	// allow socket to be reused to avoid problems with binding in the future
-	ret = setsockopt(sock_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
-	if (ret < 0) {
-		DEBUG("setsockopt failed: %s\n", strerror(errno));
-		// return res;
-		assert(0);
-	}
-
-	// bind the socket to the local address and port so we can accept connections on it
-	// ret = bind(sock_fd, (struct sockaddr*)&my_addr, addrlen);
-	ret = bind(sock_fd, result->ai_addr, result->ai_addrlen);
-	if (ret < 0) {
-		DEBUG("bind failed: %s\n", strerror(errno));
-		// return ret;
-		assert(0);
-	}
-
-	ret = set_up_listen(sock_fd, result);
-	if (ret < 0) {
-		DEBUG("set up listen failed\n");
-		assert(0);
-	}
-
-	// TODO: close these later when we won't need them anymore
-	// _hub_find_fileop("posix")->CLOSE(sock_fd); // I think we can close this one here?
-	// _hub_find_fileop("posix")->CLOSE(accept_socket); // I think we want to save this one and close it later?
-	// cxn_fd = accept_socket;
-
-    server_listen(sock_fd, result);
-	
-	// TODO: free addr info structs when we are all done and quitting the program
-}
-
-int set_up_listen(int sock_fd, struct addrinfo *addr_info) {
-	struct timeval timeout;
-	int ret;
-	timeout.tv_sec = 3; // the actual timeout should probably be very high
-						// to account for situations where the client is still running 
-						// but not sending any messages
-	timeout.tv_usec = 0;
-
-	// set up socket to listen for connections
-	ret = listen(sock_fd, 2);
-	if (ret < 0) {
-		DEBUG("listen failed: %s\n", strerror(errno));
-		return ret;
-	}
-
-	// wait for someone to connect and accept when they do
-	DEBUG("waiting for connections\n");
-	cxn_fd = accept(sock_fd, addr_info->ai_addr, &addr_info->ai_addrlen);
-	if (cxn_fd < 0) {
-		DEBUG("accept failed: %s\n", strerror(errno));
-		return cxn_fd;
-	}
-
-	ret = setsockopt(cxn_fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(struct timeval));
-	if (ret < 0) {
-		DEBUG("setsockopt failed\n");
-		return ret;
-	}
-
-	return 0;
-}
-
-// waits in a loop for messages from the client process.
-// TODO: if the client disconnects, we should free connection resources and then
-// wait for a new client to connect
-// TODO: in the future if we are monitoring multiple file descriptors, use select()
-void server_listen(int sock_fd, struct addrinfo *addr_info) {
-    int request_size = sizeof(struct remote_request);
-    struct remote_request *request;
-    char request_buffer[request_size];
-    int bytes_read, ret;
-    int cur_index = 0;
-        
-    while(1) {
-        DEBUG("waiting for message from client\n");
-		bytes_read = read_from_socket(cxn_fd, request_buffer, request_size);
-		if (bytes_read < request_size) {
-			DEBUG("read %d bytes\n", bytes_read);
-			DEBUG("read failed, client is disconnected\n");
-			_hub_find_fileop("posix")->CLOSE(cxn_fd); 
-			// assert(0); // TODO: better error handling
-			// TODO: if the client disconnects, go back and wait for another one to connect
-
-			// wait for another client to connect 
-			ret = set_up_listen(sock_fd, addr_info);
-			if (ret < 0) {
-				DEBUG("set up listen failed\n");
-				assert(0);
-			}
-		}
-		request = (struct remote_request*)request_buffer;
-		switch(request->type) {
-			case CREATE:
-				DEBUG("serving create request\n");
-				remote_create(request);
-				DEBUG("done serving create\n");
-				break;
-			case PWRITE:
-				DEBUG("serving write request\n");
-				remote_write(request);
-				DEBUG("done serving write\n");
-				break;
-			case PREAD:
-				DEBUG("serving read request\n");
-				remote_read(request);
-				DEBUG("done serving read\n");
-				break;
-			case OPEN:
-				DEBUG("serving open request\n");
-				remote_open(request);
-				DEBUG("done serving open\n");
-				break;
-			case CLOSE:
-				DEBUG("serving close request\n");
-				remote_close(request);
-				DEBUG("done serving close\n");
-				break;
-		}
+    conf_file = fopen_fn(config_path, "r");
+    if (conf_file == NULL) {
+        perror("fopen");
+        return -1;
     }
-}
 
-int remote_create(struct remote_request *request) {
-    int fd, ret;
-    struct remote_response response;
+    memset(ip_buffer, 0, BUFFER_SIZE);
 
-    fd = _nvp_OPEN(request->file_path, request->flags, request->mode);
-    response.type = CREATE;
-    response.fd = fd;
-    ret = write(cxn_fd, &response, sizeof(response));
-    if (ret < 0) {
-        DEBUG("failed or partial write\n");
-        return ret;
+    while (fgets(buf, BUFFER_SIZE, conf_file)) {
+        memset(ip_buffer, 0, BUFFER_SIZE);
+        if (strncmp(buf, "metadata_server_ips", strlen("metadata_server_ips")) == 0) {
+            len = strlen("metadata_server_ips");
+            strncpy(ip_buffer, buf+len+1, BUFFER_SIZE-(len+1));
+            parse_comma_separated(ip_buffer, conf_opts->metadata_server_ips);
+        } else if (strncmp(buf, "metadata_server_port", strlen("metadata_server_port")) == 0) {
+            len = strlen("metadata_server_port");
+            strncpy(conf_opts->metadata_server_port, buf+len+1, 8);
+            for (i = 0; i < 8; i++) {
+                if (conf_opts->metadata_server_port[i] == ';') {
+                    conf_opts->metadata_server_port[i] = '\0';
+                }
+            }
+        } else if (strncmp(buf, "metadata_client_port", strlen("metadata_client_port")) == 0){
+            len = strlen("metadata_client_port");
+            strncpy(conf_opts->metadata_client_port, buf+len+1, 8);
+            for (i = 0; i < 8; i++) {
+                if (conf_opts->metadata_client_port[i] == ';') {
+                    conf_opts->metadata_client_port[i] = '\0';
+                }
+            }
+        } else if (strncmp(buf, "splitfs_server_ips", strlen("splitfs_server_ips")) == 0) {
+            len = strlen("splitfs_server_ips");
+            strncpy(ip_buffer, buf+len+1, BUFFER_SIZE-(len+1));
+            parse_comma_separated(ip_buffer, conf_opts->splitfs_server_ips);
+        } else if (strncmp(buf, "splitfs_server_port", strlen("splitfs_server_port")) == 0) {
+            len = strlen("splitfs_server_port");
+            strncpy(conf_opts->splitfs_server_port, buf+len+1, 8);
+            for (i = 0; i < 8; i++) {
+                if (conf_opts->splitfs_server_port[i] == ';') {
+                    conf_opts->splitfs_server_port[i] = '\0';
+                }
+            }
+        } else if (strncmp(buf, "zookeeper_ips", strlen("zookeeper_ips")) == 0) {
+            len = strlen("zookeeper_ips");
+            strncpy(ip_buffer, buf+len+1, BUFFER_SIZE-(len+1));
+            parse_comma_separated(ip_buffer, conf_opts->zookeeper_ips);
+        } else if (strncmp(buf, "zookeeper_port", strlen("zookeeper_port")) == 0) {
+            len = strlen("zookeeper_port");
+            strncpy(conf_opts->zookeeper_port, buf+len+1, 8);
+            for (i = 0; i < 8; i++) {
+                if (conf_opts->zookeeper_port[i] == ';') {
+                    conf_opts->zookeeper_port[i] = '\0';
+                }
+            }
+        }
     }
+
+    // print config options
+    printf("CONFIGURATION OPTIONS:\n");
+    printf("metadata server ips: ");
+    for (int i = 0; i < 8; i++) {
+        if (conf_opts->metadata_server_ips[i][0] != '\0') {
+            printf("%s ", conf_opts->metadata_server_ips[i]);
+        }
+    }
+    printf("\n");
+    printf("metadata server port: %s\n", conf_opts->metadata_server_port);
+    printf("metadata client port: %s\n", conf_opts->metadata_client_port);
+
+    printf("splitfs server ips: ");
+    for (int i = 0; i < 8; i++) {
+        if (conf_opts->splitfs_server_ips[i][0] != '\0') {
+            printf("%s ", conf_opts->splitfs_server_ips[i]);
+        }
+    }
+    printf("\n");
+    printf("splitfs server port: %s\n", conf_opts->splitfs_server_port);
+
+    printf("zookeeper server ips: ");
+    for (int i = 0; i < 8; i++) {
+        if (conf_opts->zookeeper_ips[i][0] != '\0') {
+            printf("%s ", conf_opts->zookeeper_ips[i]);
+        }
+    }
+    printf("\n");
+    printf("zookeeper port: %s\n", conf_opts->zookeeper_port);
+
+    fclose_fn(conf_file);
     return 0;
 }
 
-int remote_write(struct remote_request *request) {
-	int ret;
-	struct remote_response response;
+void parse_comma_separated(char *ip_buffer, char ips[8][16]) {
+    int i, j = 0, current_ip_index = 0;
+    for (i = 0; i < 8; i++) {
+        memset(ips[i], 0, 16);
+    }
 
-	// the client will send us a buffer of data, we need to read that 
-	// from the socket first
-
-	// TODO: could we run into issues with this if they send a really large
-	// amount of data?
-	char* write_buf = malloc(request->count);
-	if (write_buf == NULL) {
-		DEBUG("malloc failed\n");
-		// return -ENOMEM;
-		ret = -ENOMEM;
-		goto write_respond;
-	}
-
-	ret = read_from_socket(cxn_fd, write_buf, request->count);
-	if (ret < 0) {
-		// return ret;
-		goto write_respond;
-	}
-
-	ret = _nvp_PWRITE(request->fd, write_buf, request->count, request->offset);
-	
-	// send back a response with the error code
-write_respond:
-	free(write_buf);
-	response.type = PWRITE;
-	response.fd = request->fd;
-	response.return_value = ret;
-	ret = write(cxn_fd, &response, sizeof(response));
-	if (ret < 0) {
-		DEBUG("error sending write response\n");
-		return ret;
-	}
-
-	return 0;
+    for (i = 0; i < strlen(ip_buffer); i++) {
+        if (ip_buffer[i] == ',' || ip_buffer[i] == ';') {
+            strncpy(ips[current_ip_index], ip_buffer+j, i-j);
+            current_ip_index++;
+            j += i+1;
+        }
+    }
 }
-
-int remote_read(struct remote_request *request) {
-	char *read_buf;
-	struct remote_response response;
-	int ret, bytes_read;
-
-	// allocate a buffer to read the data into
-	read_buf = malloc(request->count);
-	if (read_buf == NULL) {
-		DEBUG("malloc failed\n");
-		bytes_read = -ENOMEM;
-		goto read_respond;
-	}
-
-	// read data into buffer
-	bytes_read = _nvp_PREAD(request->fd, read_buf, request->count, request->offset);
-	if (bytes_read < 0) {
-		goto read_respond;
-	}
-
-read_respond:
-	// construct a response indicating return value
-	response.type = PREAD;
-	response.fd = request->fd;
-	response.return_value = bytes_read;
-	ret = write(cxn_fd, &response, sizeof(response));
-	if (ret < 0) {
-		DEBUG("error sending read response\n");
-		return ret;
-	}
-
-	if (bytes_read > 0) {
-		// then send the read data
-		ret = write(cxn_fd, read_buf, bytes_read);
-		if (ret < 0) {
-			DEBUG("error sending read data\n");
-			return ret;
-		}
-	}
-	DEBUG("sent %d bytes to client\n", ret);
-
-	// free the buffer
-	free(read_buf);
-	return 0;
-}
-
-int remote_open(struct remote_request *request) {
-	struct remote_response response;
-	int ret;
-
-	ret = _nvp_OPEN(request->file_path, request->flags, request->mode);
-	if (ret < 0) {
-		DEBUG("error opening file %d\n", request->file_path);
-	}
-
-	response.type = CLOSE;
-	response.fd = ret;
-	response.return_value = ret;
-	ret = write(cxn_fd, &response, sizeof(response));
-	if (ret < 0) {
-		DEBUG("error sending open response\n");
-		return ret;
-	}
-
-	return 0;
-}
-
-int remote_close(struct remote_request *request) {
-	struct remote_response response;
-	int ret;
-
-	ret = _nvp_CLOSE(request->fd);
-	if (ret < 0) {
-		DEBUG("error closing fd %d\n", request->fd);
-	}
-
-	response.type = CLOSE;
-	response.fd = request->fd;
-	response.return_value = ret;
-	DEBUG("sending %d bytes to the client\n", sizeof(struct remote_response));
-	ret = write(cxn_fd, &response, sizeof(struct remote_response));
-	if (ret < 0) {
-		DEBUG("error sending close response\n");
-		return ret;
-	}
-
-	return 0;
-}
-
-int read_from_socket(int sock, void *buf, size_t len) {
-	int bytes_read = read(sock, buf, len);
-	if (bytes_read < 0) {
-		DEBUG("read failed\n");
-		return bytes_read;
-	}
-	int cur_index = bytes_read;
-	while (cur_index < len) {
-		bytes_read = read(sock, buf+cur_index, len-cur_index);
-		if (bytes_read <= 0) {
-			DEBUG("read failed\n");
-			return bytes_read;
-		}
-		cur_index += bytes_read;
-	}
-	return bytes_read;
-}
-
-

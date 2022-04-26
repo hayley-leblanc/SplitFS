@@ -3,12 +3,15 @@
 
 #include <zookeeper/zookeeper.h>
 
+#define CONFIG_PATH "../config"
+#define BUFFER_SIZE 256
+
 int cxn_fd;
 pthread_t server_thread;
 
 static zhandle_t *zh;
 
-void server_thread_start(void *arg);
+void* server_thread_start(void *arg);
 int read_from_socket(int sock, void* buf, size_t len);
 
 // enum for request types. add to this to add new operations
@@ -42,46 +45,23 @@ struct remote_response {
     size_t return_value;
 };
 
-// structures and methods for associating file paths with open file descriptors
-// assume we aren't renaming any files, so file names won't change under us
-// TODO: implement a basic hashmap; iterating over a linked list is too slow
-struct fd_path_node {
-    struct fd_path_node *next;
-    int fd;
-    char file_path[MAX_FILENAME_LEN];
+// options read from a config file
+struct config_options {
+    char metadata_server_port[8];
+    char metadata_client_port[8];
+    char splitfs_server_port[8];
+    char zookeeper_port[8];
+    // allow up to 8 machines that may act as metadata servers,
+    // splitfs servers, or zookeeper servers
+    // these lists can overlap
+    char metadata_server_ips[8][16];
+    char splitfs_server_ips[8][16];
+    char zookeeper_ips[8][16];
+
 };
 
-static struct fd_path_node *fd_list_head = NULL;
-static struct fd_path_node *fd_list_tail = NULL;
-
-static int add_fd_path_node(int fd, char* file_path) {
-    DEBUG("adding fd %d for path %s\n", fd, file_path);
-    if (fd_list_head == NULL) {
-        fd_list_head = malloc(sizeof(struct fd_path_node));
-        if (fd_list_head == NULL) {
-            DEBUG("bad malloc\n");
-            return -1;
-        }
-        fd_list_head->next = NULL;
-        fd_list_head->fd = fd;
-        memcpy(fd_list_head->file_path, file_path, MAX_FILENAME_LEN);
-        fd_list_tail = fd_list_head;
-    }
-    else {
-        struct fd_path_node *new_node = malloc(sizeof(struct fd_path_node));
-        if (new_node == NULL) {
-            DEBUG("bad malloc\n");
-            return -1;
-        }
-        new_node->next = NULL;
-        new_node->fd = fd;
-        memcpy(new_node->file_path, file_path, MAX_FILENAME_LEN);
-        fd_list_tail->next = new_node;
-        fd_list_tail = new_node;
-    }
-
-    return 0;
-}
+int parse_config(struct config_options *conf_opts, char* config_path, int (*close_fn)(FILE*), FILE* (*fopen_fn)(const char*, const char*));
+void parse_comma_separated(char *ip_buffer, char ips[8][16]);
 
 
 #endif // REMOTE_H

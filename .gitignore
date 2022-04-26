@@ -14,6 +14,11 @@ sqlite3-trace/.libs
 *swp
 *cscope*
 a.out
+splitfs/metadata_server
+dist_tests/client
+dist_tests/server
+
+zookeeper/logs/
 
 rsync/workload/
 rsync/rsync
