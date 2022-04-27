@@ -68,7 +68,7 @@ memcpy.o: memcpy.c
 # 	$(CC) $< -o $@ 
 
 metadata_server: $(REMOTE) metadata_server.o
-	$(CC) $^ -L/usr/local/lib -lzookeeper_mt -DTHREADED -o $@ -pthread
+	$(CXX) $^ -L/usr/local/lib -lzookeeper_mt -DTHREADED -o $@ -pthread
 
 #  Boring stuff  #
 

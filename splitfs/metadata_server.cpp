@@ -9,25 +9,23 @@
 #include <netdb.h>
 #include <err.h>
 #include <unistd.h>
+#include <iostream>
+#include <fcntl.h>
 
 #include "metadata_server.h"
 #include "remote.h"
 
-pthread_mutex_t server_fdset_lock, client_fdset_lock;
-fd_set server_fds, client_fds;
-pthread_t server_cxn_thread, client_cxn_thread;
+using namespace std;
 
 // watcher callback function
 void watcher(zhandle_t *zzh, int type, int state, const char *path,
              void *watcherCtx) {}
 
-void cleanup();
-
 int main() {
     int ret;
     struct config_options conf_opts;
     char addr_buf[64];
-    pthread_attr_t server_cxn_thread_attr, client_cxn_thread_attr;
+    pthread_attr_t server_cxn_thread_attr, client_cxn_thread_attr, client_select_thread_attr;
 	
     ret = parse_config(&conf_opts, CONFIG_PATH, fclose, fopen);
     if (ret < 0) {
@@ -47,34 +45,32 @@ int main() {
         perror("zookeeper_init");
         return -1;
     }
-
+    
+    // set up mutexes
     ret = pthread_mutex_init(&server_fdset_lock, NULL);
     if (ret < 0) {
         perror("pthread_mutex_init");
         return ret;
     }
-
     ret = pthread_mutex_init(&client_fdset_lock, NULL);
     if (ret < 0) {
         perror("pthread_mutex_init");
         return ret;
     }
 
-    // establish connections to servers
+    // set up thread to listen for new server connections
     ret = pthread_attr_init(&server_cxn_thread_attr);
     if (ret != 0) {
         perror("pthread_attr_init");
         cleanup();
         return ret;
     }
-
     ret = pthread_create(&server_cxn_thread, &server_cxn_thread_attr, splitfs_server_connect, &conf_opts);
     if (ret != 0) {
         perror("pthread_create");
         cleanup();
         return ret;
     }
-
     ret = pthread_attr_destroy(&server_cxn_thread_attr);
 	if (ret != 0) {
 		perror("pthread_attr_destroy");
@@ -82,20 +78,19 @@ int main() {
 		return ret;
 	}
 
+    // set up thread to listen for new client connections
     ret = pthread_attr_init(&client_cxn_thread_attr);
     if (ret != 0) {
         perror("pthread_attr_init");
         cleanup();
         return ret;
     }
-
     ret = pthread_create(&client_cxn_thread, &client_cxn_thread_attr, client_connect, &conf_opts);
     if (ret != 0) {
         perror("pthread_create");
         cleanup();
         return ret;
     }
-
     ret = pthread_attr_destroy(&client_cxn_thread_attr);
     if (ret != 0) {
 		perror("pthread_attr_destroy");
@@ -103,25 +98,44 @@ int main() {
 		return ret;
 	}
 
-    
+    // set up thread to listen for incoming client requests
+    ret = pthread_attr_init(&client_select_thread_attr);
+    if (ret != 0) {
+        perror("pthread_attr_init");
+        cleanup();
+        return ret;
+    }
+    ret = pthread_create(&client_select_thread, &client_select_thread_attr, client_listen, &conf_opts);
+    if (ret != 0) {
+        perror("pthread_create");
+        cleanup();
+        return ret;
+    }
+    ret = pthread_attr_destroy(&client_select_thread_attr);
+    if (ret != 0) {
+		perror("pthread_attr_destroy");
+        cleanup();
+		return ret;
+	}
     
     cleanup();
     return 0;
 }
 
-void cleanup() {
-    zookeeper_close(zh);
-    pthread_mutex_destroy(&server_fdset_lock);
-    pthread_mutex_destroy(&client_fdset_lock);
+void cleanup() {    
     pthread_join(server_cxn_thread, NULL);
     pthread_join(client_cxn_thread, NULL);
+    pthread_join(client_select_thread, NULL);
+    pthread_mutex_destroy(&server_fdset_lock);
+    pthread_mutex_destroy(&client_fdset_lock);
+    zookeeper_close(zh);
 }
 
 void* splitfs_server_connect(void* args) {
     struct addrinfo hints;
     struct addrinfo *result, *rp;
-    // TODO: global num_connections with lock around it?
-    int i, num_connections = 0, num_ips = 0, opt = 1, listen_socket, ret, cxn_socket;
+    unsigned int num_ips = 0;
+    int i, opt = 1, listen_socket, ret, cxn_socket;
     struct config_options *conf_opts = (struct config_options*)args;
     int ip_protocol = AF_INET;
     int transport_protocol = SOCK_STREAM;
@@ -182,17 +196,19 @@ void* splitfs_server_connect(void* args) {
     while(1) {
         // if all connections are active, sleep for 5 seconds before trying again
         // TODO: should probably sleep for a shorter amount of time
-        if (num_connections == num_ips) {
+        if (server_fd_vec.size() == num_ips) {
             sleep(5);
         } else {
             cxn_socket = accept(listen_socket, result->ai_addr, &result->ai_addrlen);
             if (cxn_socket < 0) {
                 perror("accept");
             }
+            printf("got connection to server with fd %d\n", cxn_socket);
             // TODO: handle locking errors
             pthread_mutex_lock(&server_fdset_lock);
             FD_SET(cxn_socket, &server_fds);
-            num_connections++;
+            // num_server_connections++;
+            server_fd_vec.push_back(cxn_socket);
             pthread_mutex_unlock(&server_fdset_lock);
         }
     }
@@ -204,8 +220,7 @@ void* splitfs_server_connect(void* args) {
 void* client_connect(void* args) {
     struct addrinfo hints;
     struct addrinfo *result, *rp;
-    // TODO: global num_connections with lock around it?
-    int i, num_connections = 0, opt = 1, listen_socket, ret, cxn_socket;
+    int i, opt = 1, listen_socket, ret, cxn_socket;
     struct config_options *conf_opts = (struct config_options*)args;
     int ip_protocol = AF_INET;
     int transport_protocol = SOCK_STREAM;
@@ -259,13 +274,151 @@ void* client_connect(void* args) {
         if (cxn_socket < 0) {
             perror("accept");
         }
+        printf("got connection to client with fd %d\n", cxn_socket);
         // TODO: handle locking errors
         pthread_mutex_lock(&client_fdset_lock);
         FD_SET(cxn_socket, &client_fds);
-        // num_connections++;
+        client_fd_vec.push_back(cxn_socket);
         pthread_mutex_unlock(&client_fdset_lock);
     }
 
     return NULL;
 
+}
+
+// TODO: handle dropped clients
+void* client_listen(void* args) {
+    struct timeval tv;
+    int ret, nfds = 0;
+    fd_set client_fds_copy;
+    // watch the set of client fds to see when one has input
+    while (1) {
+        tv.tv_sec = 0;
+        tv.tv_usec = 100;
+        
+        pthread_mutex_lock(&client_fdset_lock);
+        FD_ZERO(&client_fds_copy);
+        for (int i = 0; i < client_fd_vec.size(); i++) {
+            if (client_fd_vec[i] > nfds) {
+                nfds = client_fd_vec[i];
+            }
+        }
+        for (int i = 0; i <= nfds; i++) {
+            if (FD_ISSET(i, &client_fds)) {
+                FD_SET(i, &client_fds_copy);
+            }
+        }
+        pthread_mutex_unlock(&client_fdset_lock);
+        ret = select(nfds+1, &client_fds_copy, NULL, NULL, &tv);
+        if (ret < 0) {
+            perror("select");
+        } else {
+            // determine which fd is ready
+            pthread_mutex_lock(&client_fdset_lock);
+            bool found_fd = false;
+            for (int i = 0; i < client_fd_vec.size(); i++) {
+                if (FD_ISSET(client_fd_vec[i], &client_fds_copy)) {
+                    // TODO: spin off a new thread to handle this FD
+                    int fd = client_fd_vec[i];
+                    found_fd = true;
+                    pthread_mutex_unlock(&client_fdset_lock);
+                    ret = read_from_client(client_fd_vec[i]);
+                    if (ret < 0) {
+                        printf("failed reading from client\n");
+                        return NULL;
+                    }
+
+                }
+            }
+            if (!found_fd) {
+                pthread_mutex_unlock(&client_fdset_lock);
+            }
+            
+        } 
+    }
+
+    return NULL;
+}
+
+int read_from_client(int client_fd) {
+    int request_size = sizeof(struct remote_request);
+    struct remote_request *request;
+    char request_buffer[request_size];
+    struct remote_response response;
+    int bytes_read, ret;
+
+    printf("waiting for message from client\n");
+    bytes_read = read_from_socket(client_fd, request_buffer, request_size);
+    if (bytes_read < request_size) {
+        printf("read failed, client is disconnected\n");
+        pthread_mutex_lock(&client_fdset_lock);
+        FD_CLR(client_fd, &client_fds);
+        // TODO: find a faster method; this is inefficient.
+        // we can't just pass in the index we found the client fd at 
+        // when we called read_from_client(); the fd's spot in the list
+        // may have changed between then and now (?)
+        for (int i = 0; i < client_fd_vec.size(); i++) {
+            if (client_fd_vec[i] == client_fd) {
+                client_fd_vec.erase(client_fd_vec.begin()+i);
+            }
+        }
+        close(client_fd);
+        pthread_mutex_unlock(&client_fdset_lock);
+        return -1;
+    }
+    request = (struct remote_request*)request_buffer;
+    memset(&response, 0, sizeof(response));
+    switch(request->type) {
+        case CREATE:
+            printf("the client wants to create a file\n");
+            ret = manage_create(client_fd, request, response);
+            if (ret < 0) {
+                return ret;
+            }
+            break;
+        case CLOSE:
+            printf("client wants to close a file\n");
+            ret = manage_close(client_fd, request, response);
+            if (ret < 0) {
+                return ret;
+            }
+    }
+
+    // TODO: SEND A RESPONSE BACK
+    printf("sending response\n");
+    ret = write(client_fd, &response, sizeof(struct remote_response));
+    if (ret < 0) {
+        perror("write");
+        return ret;
+    }
+
+    return 0;
+}
+
+// until data is written to a file, all of its metadata is stored here 
+// on the metadata server, so the file is just created locally 
+// TODO: LOCKING!!
+int manage_create(int client_fd, struct remote_request *request, struct remote_response &response) {
+    int fd = open(request->file_path, request->flags, request->mode);
+    printf("created file on metadata server with fd %d\n", fd);
+    strcpy(fd_to_name[fd], request->file_path);
+    fd_to_client[fd] = client_fd;
+
+    response.type = CREATE;
+    response.fd = fd;
+    response.return_value = fd;
+
+    return fd;
+}
+
+int manage_close(int client_fd, struct remote_request *request, struct remote_response &response) {
+    int ret = close(request->fd);
+    fd_to_name.erase(request->fd);
+    fd_to_client.erase(request->fd);
+
+    response.type = CLOSE;
+    response.fd = request->fd;
+    response.return_value = ret;
+
+    return ret;
 }

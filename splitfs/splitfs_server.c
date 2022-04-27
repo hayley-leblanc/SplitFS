@@ -64,21 +64,11 @@ void* server_thread_start(void *arg) {
 	} else {
 		perror("connect");
 		DEBUG("unable to connect to metadata server\n");
-		_hub_find_fileop("posix")->CLOSE(sock_fd);
+		_hub_find_fileop("posix")->CLOSE(metadata_fd);
 		assert(0);
 	}
 
 	DEBUG("opening connections to client\n");
-	
-	// // set up a socket to listen for a connection request
-	// // at some point, this will have to run in the background
-	// // so that the server can do other work while also listening
-	// // for new requests
-	// sock_fd = socket(ip_protocol, transport_protocol, 0);
-	// if (sock_fd < 0) {
-	// 	DEBUG("socket failed: %s\n", strerror(errno));
-	// 	assert(0);
-	// }
 
 	memset(&hints, 0, sizeof(hints));
 	memset(&result, 0, sizeof(result));
@@ -368,22 +358,3 @@ int remote_close(struct remote_request *request) {
 
 	return 0;
 }
-
-int read_from_socket(int sock, void *buf, size_t len) {
-	int bytes_read = read(sock, buf, len);
-	if (bytes_read < 0) {
-		DEBUG("read failed\n");
-		return bytes_read;
-	}
-	int cur_index = bytes_read;
-	while (cur_index < len) {
-		bytes_read = read(sock, buf+cur_index, len-cur_index);
-		if (bytes_read <= 0) {
-			DEBUG("read failed\n");
-			return bytes_read;
-		}
-		cur_index += bytes_read;
-	}
-	return bytes_read;
-}
-

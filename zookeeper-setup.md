@@ -25,10 +25,19 @@ sudo make install
 ## Running Zookeeper
 **TODO: instructions for replicated Zookeeper**
 
-**NOTE**: SplitFS must be compiled with the correct `CLIENT` or `SERVER` option corresponding to whether you want that node to run the client or server version. If you try to run the server program with client SplitFS or vice versa, it will behave strangely. These options can be found in SplitFS/splitfs/common.mk. If you want to run a client, set `CLIENT=1` and `SERVER=0` (vice versa to run a server), then `make clean` and recompile.
+1. Compile SplitFS with the `CLIENT` or `SERVER` argument set to 1 on each node, depending on which role you would like that node to play. A node can only play one role. `SERVER` compiles SplitFS to run a file server at that node and `CLIENT` to run a client. The metadata server can be run on any machine regardless of compilation configuration. Setting both `CLIENT` and `SERVER` to 0 builds the local version of SplitFS only.
+2. Edit the `config` file (currently lives in the SplitFS root) and possibly `zookeeper/conf/zoo.conf` on each node for your setup. Make sure that each instance uses the same configuration.
+    - `zoo.conf` only needs to be edited if you want to change the port that Zookeeper runs on. 
+    - `config` should be modified to use the IP addresses of your machines.
+        - The `*_ips` configurations can take a comma-separated list (no spaces) of up to 8 IP addresses, although only the first is currently used.
+        - The client reads the `splitfs_server_*` options to determine what server to connect to and the server uses `zookeeper_*` options to connect to the zookeeper instance. 
+        - The client and server both read the `metadata_*` options to figure out how to connect to the metadata server.
+        - Make sure that `zookeeper_port` matches the port specified in `zookeeper/conf/zoo.conf`. 
+        - If you are using Chameleon Cloud, use the internal IP addresses (which probably start with 10) rather than public floating IPs (which probably start with 128 or 129).
+3. On a file server node, `cd` to SplitFS/zookeeper and run `sudo bin/zkServer.sh start`. This starts the Zookeeper server running in the background with the configuration options specified in conf/zoo.cfg. 
+4. On either a file server node or a dedicated machine, `cd` to SplitFS/splitfs and run `./metadata_server` to start the metadata server. 
+5. On a file server node, cd to SplitFS/dist-tests and run `./setup.sh; ./run.sh ./server` to start a file server.
+6. On a client node, cd to SplitFS/dist-tests and run `./setup.sh; ./run.sh ./client` to run the client program. 
 
-First, edit the `config` file (currently lives in the SplitFS root) and possibly `zookeeper/conf/zoo.conf` for your setup. `zoo.conf` only needs to be edited if you want to change the port that Zookeeper runs on. `config` should be modified to use the IP addresses of your machines. The `*_ips` configurations can take a comma-separated list (no spaces) of up to 8 IP addresses, although only the first is currently used. At the moment, `metadata_server_*` configuration options are not used. The client reads the `splitfs_server_*` options to determine what server to connect to and the server uses `zookeeper_*` options to connect to the zookeeper instance. Make sure that `zookeeper_port` matches the port specified in `zookeeper/conf/zoo.conf`. If you are using Chameleon Cloud, use the internal IP addresses (which probably start with 10) rather than public floating IPs (which probably start with 128 or 129). Make sure that each instance uses the same configurations.
+If the client's IP addresses and port options are set correctly, the client should automatically connect 1) the Zookeeper server, 2) the metadata server, and 3) the file server. It will disconnect from both when the client finishes. Currently, clients and servers connect to Zookeeper and the metadata server, but don't use either service for anything - all system calls are handled solely via direct communication between the client and file server.
 
-On a server, before starting SplitFS, `cd` to SplitFS/zookeeper and run `sudo bin/zkServer.sh start`. This starts the Zookeeper server running in the background with the configuration options specified in conf/zoo.cfg. Then, start the SplitFS server, then run a client process. If the client's IP addresses and port options are set correctly, the client should automatically connect to both the Zookeeper server and the SplitFS server, and disconnect from both when the client program finishes.
-
-The files in SplitFS/dist-tests are set up properly to run with Zookeeper. `cd` to SplitFS/dist-tests and run `./setup.sh; gcc client.c -o client; ./run.sh ./client` to run a sample client program. Replace `client` with `server` to run the server. 
