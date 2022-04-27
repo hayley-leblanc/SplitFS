@@ -4,7 +4,7 @@
 
 int parse_config(
     struct config_options *conf_opts, 
-    char* config_path, 
+    const char* config_path, 
     int (*fclose_fn)(FILE*),
     FILE* (*fopen_fn)(const char*, const char*)) 
 {
@@ -117,4 +117,22 @@ void parse_comma_separated(char *ip_buffer, char ips[8][16]) {
             j += i+1;
         }
     }
+}
+
+int read_from_socket(int sock, void *buf, size_t len) {
+	int bytes_read = recv(sock, buf, len, 0);
+	if (bytes_read < 0) {
+        perror("recv");
+		return bytes_read;
+	}
+	int cur_index = bytes_read;
+	while (cur_index < len) {
+		bytes_read = recv(sock, buf+cur_index, len-cur_index, 0);
+		if (bytes_read <= 0) {
+			printf("read failed\n");
+			return bytes_read;
+		}
+		cur_index += bytes_read;
+	}
+	return bytes_read;
 }

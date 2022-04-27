@@ -12,7 +12,6 @@ pthread_t server_thread;
 static zhandle_t *zh;
 
 void* server_thread_start(void *arg);
-int read_from_socket(int sock, void* buf, size_t len);
 
 // enum for request types. add to this to add new operations
 // TODO: we should have separate operations for write/pwrite and read/pread
@@ -59,8 +58,14 @@ struct config_options {
     char zookeeper_ips[8][16];
 
 };
-
-int parse_config(struct config_options *conf_opts, char* config_path, int (*close_fn)(FILE*), FILE* (*fopen_fn)(const char*, const char*));
+#ifdef __cplusplus
+extern "C" {
+#endif 
+int parse_config(struct config_options *conf_opts, const char* config_path, int (*close_fn)(FILE*), FILE* (*fopen_fn)(const char*, const char*));
+int read_from_socket(int sock, void* buf, size_t len);
+#ifdef __cplusplus
+}
+#endif 
 void parse_comma_separated(char *ip_buffer, char ips[8][16]);
 
 

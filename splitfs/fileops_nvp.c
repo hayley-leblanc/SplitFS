@@ -907,7 +907,7 @@ void nvp_cleanup(void)
 {
 	int i, j;
 
-#if CLIENT || SERVER
+#if CLIENT || FILE_SERVER
 	pthread_join(server_thread, NULL);
 	DEBUG("closing remote connection file descriptor %d\n", cxn_fd);
 	_hub_find_fileop("posix")->CLOSE(cxn_fd);
@@ -1562,7 +1562,7 @@ void _nvp_init2(void)
 	else
 		execv_done = 0;
 
-#if CLIENT || SERVER 
+#if CLIENT || FILE_SERVER 
 	DEBUG("Setting up remote connections\n");
 	/*
 	 * Plan for single-server connection is as follows:
@@ -1676,7 +1676,7 @@ void _nvp_init2(void)
 
 	freeaddrinfo(result);
 	cxn_fd = sock_fd;
-#elif SERVER 
+#elif FILE_SERVER 
 	pthread_attr_t thread_attr;
 	pthread_t thread;
 	
