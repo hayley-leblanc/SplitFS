@@ -1580,6 +1580,7 @@ void _nvp_init2(void)
 	int res;
 	int opt = 1;
 	long flags = 0;
+	struct timeval timeout;
 
 	int ip_protocol = AF_INET; // IPv4
 	int transport_protocol = SOCK_STREAM; // TCP
@@ -1643,6 +1644,15 @@ void _nvp_init2(void)
 		error = errno;
 		_hub_find_fileop("posix")->CLOSE(sock_fd);
 	}
+	// timeout.tv_sec = 5;
+	// timeout.tv_usec = 0;
+	// ret = setsockopt(sock_fd, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
+	// if (ret < 0) {
+	// 	DEBUG("setsockopt failed\n");
+	// 	assert(0);
+	// }
+
+	metadata_server_fd = sock_fd;
 
 	DEBUG("connecting to server\n");
 	// getaddrinfo is a system call that, given an IP address, a port,
@@ -3345,53 +3355,6 @@ RETT_PWRITE write_to_file_mmap(int file,
 		 struct NVTable_maps *tbl_over)
 {
 	DEBUG("_nvp_do_pread\n");
-// #if CLIENT 
-// 	DEBUG("sending read request to server for fd = %d, "
-// 		   "offset = %lu, count = %lu\n",
-// 		   file, offset, count);
-// 	struct remote_request request;
-// 	memset(&request, 0, sizeof(struct remote_request));
-// 	request.type = PREAD;
-// 	request.fd = file;
-// 	request.count = count;
-// 	request.offset = offset;
-
-// 	// request file data
-// 	int ret = write(cxn_fd, &request, sizeof(request));
-// 	if (ret < sizeof(request)) {
-// 		DEBUG("failed or partial write sending write request\n");
-// 		return -1;
-// 	}
-
-// 	// then read the sent data into the user buffer
-// 	// server will first send a response with return value/number of bytes read
-// 	// then the data
-
-// 	struct remote_response read_response;
-// 	memset(&read_response, 0, sizeof(read_response));
-// 	int bytes_read = read_from_socket(cxn_fd, &read_response, sizeof(read_response));
-// 	if (bytes_read < sizeof(read_response)) {
-// 		DEBUG("failed or partial read\n");
-// 		return -1;
-// 	}
-
-// 	// we should be able to read directly into the user buffer
-// 	if (read_response.return_value < 0) {
-// 		DEBUG("server failed processing read\n");
-// 		return read_response.return_value;
-// 	}
-// 	int bytes_to_read = read_response.return_value;
-// 	if (bytes_to_read > 0) {
-// 		bytes_read = read_from_socket(cxn_fd, buf, bytes_to_read);
-// 		if (bytes_read < bytes_to_read) {
-// 			DEBUG("failed or partial read\n");
-// 			return -1;
-// 		}
-// 	}
-
-// 	return bytes_to_read;
-
-// #endif
 	SANITYCHECKNVF(nvf);
 	long long read_offset_within_true_length = 0;
 	size_t read_count, extent_length, read_count_beyond_true_length;
@@ -3770,46 +3733,6 @@ RETT_PWRITE _nvp_do_pwrite(INTF_PWRITE,
 			   struct NVTable_maps *tbl_over)
 {
 	DEBUG("_nvp_do_pwrite\n");
-// #if CLIENT 
-// 	DEBUG("sending write request to server for fd = %d, "
-// 		   "offset = %lu, count = %lu\n",
-// 		   file, offset, count);
-// 	struct remote_request request;
-// 	memset(&request, 0, sizeof(struct remote_request));
-// 	request.type = WRITE;
-// 	request.fd = file;
-// 	request.count = count;
-// 	request.offset = offset;
-
-// 	// first we sent the request with metadata about the write call 
-// 	// so that the server knows what to expect
-// 	int ret = write(cxn_fd, &request, sizeof(request));
-// 	if (ret < sizeof(request)) {
-// 		DEBUG("failed or partial write sending write request\n");
-// 		return -1;
-// 	}
-
-// 	// then we send the data to be written
-// 	// TODO: where does buf come from? it seems to appear out of nowhere??
-
-// 	ret = write(cxn_fd, buf, count);
-// 	if (ret < count) {
-// 		DEBUG("failed or partial write sending write data\n");
-// 		DEBUG("sent %d out of %d bytes\n", ret, count);
-// 		return -1;
-// 	}
-
-// 	// then we need to wait for a response to tell us how much actually got written
-// 	struct remote_response write_response;
-// 	memset(&write_response, 0, sizeof(struct remote_response));
-// 	int bytes_read = read_from_socket(cxn_fd, &write_response, sizeof(write_response));
-// 	if (bytes_read < sizeof(write_response)) {
-// 		DEBUG("failed or partial read\n");
-// 		return -1;
-// 	}
-
-// 	return write_response.return_value;
-// #else 
 	CHECK_RESOLVE_FILEOPS(_nvp_);
 	off_t write_offset, offset_within_mmap;
 	size_t write_count, extent_length;
@@ -4520,19 +4443,21 @@ RETT_OPEN _nvp_OPEN(INTF_OPEN)
 		request.mode = mode;
 
 		// send the create request to the server
-		int ret = write(cxn_fd, &request, sizeof(request));
+		DEBUG("sending create request to fd %d\n", metadata_server_fd);
+		int ret = send(metadata_server_fd, &request, sizeof(request), 0);
 		if (ret < sizeof(request)) {
 			DEBUG("failed or partial write\n");
 			END_TIMING(open_t, open_time);
 			GLOBAL_UNLOCK_WR();
 			return -1;
 		}
+		DEBUG("sent request\n");
 
 		struct remote_response create_response;
 		int response_size = sizeof(create_response);
-
+		DEBUG("waiting for response\n");
 		// wait for a response with the file descriptor from the server
-		int bytes_read = read_from_socket(cxn_fd, &create_response, response_size);
+		int bytes_read = read_from_socket(metadata_server_fd, &create_response, response_size);
 		if (bytes_read < response_size) {
 			DEBUG("failed or partial read\n");
 			END_TIMING(open_t, open_time);

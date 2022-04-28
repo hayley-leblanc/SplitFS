@@ -6,7 +6,8 @@
 #define CONFIG_PATH "../config"
 #define BUFFER_SIZE 256
 
-int cxn_fd;
+int cxn_fd; 
+int metadata_server_fd;
 pthread_t server_thread;
 
 static zhandle_t *zh;

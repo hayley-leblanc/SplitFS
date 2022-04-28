@@ -15,24 +15,24 @@ int main(void) {
 		return fd;
 	}
 
-	printf("fd: %d\n", fd);
+	// printf("fd: %d\n", fd);
 
-	int ret = pwrite(fd, write_buf, strlen(write_buf), 0);
-	if (ret < 0) {
-		perror("write");
-		// close(fd);
-		return ret;
-	}
+	// int ret = pwrite(fd, write_buf, strlen(write_buf), 0);
+	// if (ret < 0) {
+	// 	perror("write");
+	// 	// close(fd);
+	// 	return ret;
+	// }
 
-	ret = pread(fd, read_buf, 16, 0);
-	if (ret < 0) {
-		perror("read");
-		return ret;
-	}
+	// ret = pread(fd, read_buf, 16, 0);
+	// if (ret < 0) {
+	// 	perror("read");
+	// 	return ret;
+	// }
 
 	close(fd);
 
-	printf("DATA READ FROM REMOTE SERVER: %s\n", read_buf);
+	// printf("DATA READ FROM REMOTE SERVER: %s\n", read_buf);
 
 
     return 0;
