@@ -911,6 +911,7 @@ void nvp_cleanup(void)
 	pthread_join(server_thread, NULL);
 	DEBUG("closing remote connection file descriptor %d\n", cxn_fd);
 	_hub_find_fileop("posix")->CLOSE(cxn_fd);
+	_hub_find_fileop("posix")->CLOSE(metadata_server_fd);
 	zookeeper_close(zh);
 	DEBUG("closed connection to zookeeper\n");
 #endif 
@@ -4496,7 +4497,7 @@ RETT_OPEN _nvp_OPEN(INTF_OPEN)
 		request.mode = 0666;
 
 		// send the create request to the server
-		int ret = write(cxn_fd, &request, sizeof(request));
+		int ret = write(metadata_server_fd, &request, sizeof(request));
 		if (ret < sizeof(request)) {
 			DEBUG("failed or partial write\n");
 			END_TIMING(open_t, open_time);
@@ -4508,7 +4509,7 @@ RETT_OPEN _nvp_OPEN(INTF_OPEN)
 		int response_size = sizeof(open_response);
 
 		// wait for a response with the file descriptor from the server
-		int bytes_read = read_from_socket(cxn_fd, &open_response, response_size);
+		int bytes_read = read_from_socket(metadata_server_fd, &open_response, response_size);
 		if (bytes_read < response_size) {
 			DEBUG("failed or partial read\n");
 			END_TIMING(open_t, open_time);
@@ -4877,7 +4878,7 @@ RETT_CLOSE _nvp_CLOSE(INTF_CLOSE)
 	request.type = CLOSE;
 	request.fd = file;
 
-	int ret = write(cxn_fd, &request, sizeof(request));
+	int ret = write(metadata_server_fd, &request, sizeof(request));
 	if (ret < sizeof(request)) {
 		DEBUG("failed or partial write sending write request\n");
 		GLOBAL_UNLOCK_WR();
@@ -4887,9 +4888,7 @@ RETT_CLOSE _nvp_CLOSE(INTF_CLOSE)
 
 	struct remote_response close_response;
 	memset(&close_response, 0, sizeof(close_response));
-	int bytes_read = read_from_socket(cxn_fd, &close_response, sizeof(struct remote_response));
-	DEBUG("bytes read: %d\n", bytes_read);
-	DEBUG("size of response: %d\n", sizeof(struct remote_response));
+	int bytes_read = read_from_socket(metadata_server_fd, &close_response, sizeof(struct remote_response));
 	if (bytes_read < sizeof(close_response)) {
 		DEBUG("failed or partial read\n");
 		GLOBAL_UNLOCK_WR();
