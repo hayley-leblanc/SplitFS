@@ -324,7 +324,6 @@ void* client_listen(void* args) {
                     pthread_mutex_unlock(&client_fdset_lock);
                     ret = read_from_client(client_fd_vec[i]);
                     if (ret < 0) {
-                        printf("failed reading from client\n");
                         return NULL;
                     }
 
@@ -350,7 +349,7 @@ int read_from_client(int client_fd) {
     printf("waiting for message from client\n");
     bytes_read = read_from_socket(client_fd, request_buffer, request_size);
     if (bytes_read < request_size) {
-        printf("read failed, client is disconnected\n");
+        printf("client has disconnected\n");
         pthread_mutex_lock(&client_fdset_lock);
         FD_CLR(client_fd, &client_fds);
         // TODO: find a faster method; this is inefficient.
@@ -364,7 +363,7 @@ int read_from_client(int client_fd) {
         }
         close(client_fd);
         pthread_mutex_unlock(&client_fdset_lock);
-        return -1;
+        return 0;
     }
     request = (struct remote_request*)request_buffer;
     memset(&response, 0, sizeof(response));
@@ -376,15 +375,27 @@ int read_from_client(int client_fd) {
                 return ret;
             }
             break;
+        case OPEN:
+            printf("client wants to open a file\n");
+            ret = manage_open(client_fd, request, response);
+            if (ret < 0) {
+                return ret;
+            }
+            break;
         case CLOSE:
             printf("client wants to close a file\n");
             ret = manage_close(client_fd, request, response);
             if (ret < 0) {
                 return ret;
             }
+            break;
+
     }
 
-    // TODO: SEND A RESPONSE BACK
+    // TODO: if we fail to send a response, then we should clean up any open 
+    // fds that the client might have had
+    // zookeeper will take care of releasing its locks, we just have to clean up
+    // old data about its open files
     printf("sending response\n");
     ret = write(client_fd, &response, sizeof(struct remote_response));
     if (ret < 0) {
@@ -411,6 +422,22 @@ int manage_create(int client_fd, struct remote_request *request, struct remote_r
     return fd;
 }
 
+// TODO: locking
+int manage_open(int client_fd, struct remote_request *request, struct remote_response &response) {
+    int fd = open(request->file_path, request->flags, request->mode);
+    printf("opened file on metadata server with fd %d\n", fd);
+    strcpy(fd_to_name[fd], request->file_path);
+    fd_to_client[fd] = client_fd;
+
+    response.type = OPEN;
+    response.fd = fd;
+    response.return_value = fd;
+
+    return fd;
+}
+
+
+// TODO: locking
 int manage_close(int client_fd, struct remote_request *request, struct remote_response &response) {
     int ret = close(request->fd);
     fd_to_name.erase(request->fd);

@@ -21,6 +21,7 @@ void* client_connect(void* args);
 void* client_listen(void* args);
 int read_from_client(int client_fd);
 int manage_create(int client_fd, struct remote_request *request, struct remote_response &response);
+int manage_open(int client_fd, struct remote_request *request, struct remote_response &response);
 int manage_close(int client_fd, struct remote_request *request, struct remote_response &response);
 void cleanup();
 
