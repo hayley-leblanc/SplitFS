@@ -12,6 +12,7 @@
 #include "lfq.h"
 #include "utils.h"
 #include "timers.h"
+#include "metadata_server.h"
 
 #define ENV_NV_FOP "NVP_NV_FOP"
 #define NVP_IO_EOF_SEEN 0x0010
@@ -116,6 +117,8 @@ struct NVNode
 	struct free_dr_pool dr_info;
 	struct free_dr_pool dr_over_info;
 	uint64_t dr_mem_used;
+
+	struct file_metadata persistent_metadata;
 };
 
 struct backupRoots {
