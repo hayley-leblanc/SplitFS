@@ -850,7 +850,6 @@ static inline void fsync_flush_on_fsync(struct NVFile* nvf, int cpuid, int close
 #else
 	struct NVTable_maps *tbl_over = NULL;
 #endif // DATA_JOURNALING_ENABLED
-
 	NVP_LOCK_NODE_WR(nvf);
 	TBL_ENTRY_LOCK_WR(tbl_app);
 	TBL_ENTRY_LOCK_WR(tbl_over);
@@ -3741,13 +3740,13 @@ RETT_PWRITE _nvp_do_pwrite(INTF_PWRITE,
 {
 	DEBUG("_nvp_do_pwrite\n");
 #if METADATA_SERVER
-	int ret, client_fd;
+	int ret, client_fd, bytes_read, bytes_written;
 	struct file_metadata *fm;
-	struct sockaddr_in *sa;
+	struct sockaddr_in sa;
 	struct metadata_response mr;
 	struct pwrite_in input;
+	struct remote_response response;
 
-	// client_fd = *(int*)buf;
 	input = *(struct pwrite_in*)buf;
 	client_fd = input.client_fd;
 	sa = input.dst;
@@ -3758,38 +3757,55 @@ RETT_PWRITE _nvp_do_pwrite(INTF_PWRITE,
 		return ret;
 	}
 	fm = &nvf->node->persistent_metadata;
-	DEBUG("metadata server processing write\n");
-	// we need to figure out where the file currently lives (if anywhere), and tell
-	// the client to send the file there. right now we do not replicate or split up files
-	// into chunks
-	// if (fm->length == 0) {
-	// 	// file has not been placed anywhere yet
-	// 	sa = choose_fileserver();
-	// 	if (sa == NULL) {
-	// 		// TODO: set errno?
-	// 		return -1;
-	// 	}
-	// } else {
-	// 	// file has been placed on at least one file server
-	// 	// TODO: handle this case
-	// }
 
 	// send the client the sockaddr so it can connect to the server
-
+	// TODO: if there are multiple servers to connect to, send info for all of them
 	mr.type = PWRITE;
 	mr.fd = file;
-	mr.sa = *sa;
+	mr.sa = sa;
 	// mr.port = input.port;
 	memcpy(mr.port, input.port, 8);
 
-	printf("sending metadata response\n");
 	ret = write(client_fd, &mr, sizeof(struct metadata_response));
 	if (ret < 0) {
 		perror("write");
 		return ret;
 	}
 
-	return 0; // TODO: should return the number of bytes written
+	// listen for response from fileservers
+	// TODO: listen to ALL servers involved in the operation
+	bytes_read = read_from_socket(input.fileserver_fd, &response, sizeof(struct remote_response));
+	if (bytes_read < 0) {
+		return bytes_read;
+	}
+
+	bytes_written = response.return_value;
+	if (bytes_written < 0) {
+		// TODO: set errno?
+		return bytes_written;
+	}
+
+	// if the length was 0 before this write, we have to record the file's location
+	// TODO: we also have to record new locations potentially, in the future?
+	if (fm->length == 0) {
+		fm->location.ip_addr = input.dst;
+		strcpy(fm->location.filepath, input.filepath);
+	}
+
+	// update persistent metadata accordingly
+	if (fm->length < (offset + bytes_written)) {
+		fm->length = offset + bytes_written;
+	}
+
+	// update persistent metadata
+	_nvp_fileops->PWRITE(nvf->fd, &nvf->node->persistent_metadata, sizeof(struct file_metadata), 0);
+
+	TBL_ENTRY_UNLOCK_RD(tbl_over, cpuid);
+	TBL_ENTRY_UNLOCK_RD(tbl_app, cpuid);
+	NVP_UNLOCK_NODE_RD(nvf, cpuid);
+	NVP_UNLOCK_FD_RD(nvf, cpuid);
+
+	return bytes_written; 
 	
 #else 
 	CHECK_RESOLVE_FILEOPS(_nvp_);
@@ -4278,16 +4294,20 @@ RETT_CLOSE _nvp_REAL_CLOSE(INTF_CLOSE, ino_t serialno, int async_file_closing) {
 
 	DEBUG("_nvp_REAL_CLOSE(%i): Ref count = %d\n", file, nvf->node->reference);
 	DEBUG_FILE("%s: Calling fsync flush on fsync\n", __func__);
+	DEBUG("hello???\n");
 	cpuid = GET_CPUID();
+	DEBUG("yee\n");
 #if !SYSCALL_APPENDS
 	fsync_flush_on_fsync(nvf, cpuid, 1, 0);	
 #endif
+	DEBUG("okay\n");
 	/* 
 	 * nvf->node->reference contains how many threads have this file open. 
 	 */
 	node_list_idx = nvf->node->free_list_idx;
-
+	DEBUG("acquiring lock\n");
 	pthread_spin_lock(&node_lookup_lock[node_list_idx]);
+	DEBUG("got lock\n");
 
 	if(nvf->valid == 0) {
 		pthread_spin_unlock(&node_lookup_lock[node_list_idx]);
@@ -4783,7 +4803,7 @@ RETT_OPEN _nvp_OPEN(INTF_OPEN)
 #if METADATA_SERVER 
 	// initialize persistent metadata for the file at the metadata server
 	nvf->node->persistent_metadata.length = 0;
-	memset(nvf->node->persistent_metadata.location.ip_addr, 0, 64);
+	memset(&(nvf->node->persistent_metadata.location.ip_addr), 0, sizeof(struct sockaddr_in));
 	strcpy(nvf->node->persistent_metadata.location.filepath, path);
 	// TODO: handle errors from the pwrite
 	_nvp_fileops->PWRITE(nvf->fd, &nvf->node->persistent_metadata, sizeof(struct file_metadata), 0);
