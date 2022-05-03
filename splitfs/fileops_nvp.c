@@ -17,6 +17,7 @@
 #include <sys/socket.h>
 #include <netdb.h>
 #include <pthread.h>
+#include <arpa/inet.h>
 
 #include <zookeeper/zookeeper.h>
 
@@ -1655,38 +1656,38 @@ void _nvp_init2(void)
 
 	metadata_server_fd = sock_fd;
 
-	DEBUG("connecting to server\n");
-	// getaddrinfo is a system call that, given an IP address, a port,
-	// and some additional info about the desired connection, 
-	// returns structure(s) that can be used to establish network 
-	// connections with another machine
-	// TODO: handle more than one server IP
-	res = getaddrinfo(conf_opts.splitfs_server_ips[0], conf_opts.splitfs_server_port, &hints, &result);
-	if (res != 0) {
-		DEBUG("getaddrinfo failed: %s\n", strerror(errno));
-		assert(0);
-	}
+	// DEBUG("connecting to server\n");
+	// // getaddrinfo is a system call that, given an IP address, a port,
+	// // and some additional info about the desired connection, 
+	// // returns structure(s) that can be used to establish network 
+	// // connections with another machine
+	// // TODO: handle more than one server IP
+	// res = getaddrinfo(conf_opts.splitfs_server_ips[0], conf_opts.splitfs_server_port, &hints, &result);
+	// if (res != 0) {
+	// 	DEBUG("getaddrinfo failed: %s\n", strerror(errno));
+	// 	assert(0);
+	// }
 
-	// socket() creates a network endpoint and returns a file descriptor
-	// that can be used to access that endpoint
-	sock_fd = socket(result->ai_family, result->ai_socktype, result->ai_protocol);
-	if (sock_fd < 0) {
-		DEBUG("bad socket\n");
-		assert(0);
-	}
+	// // socket() creates a network endpoint and returns a file descriptor
+	// // that can be used to access that endpoint
+	// sock_fd = socket(result->ai_family, result->ai_socktype, result->ai_protocol);
+	// if (sock_fd < 0) {
+	// 	DEBUG("bad socket\n");
+	// 	assert(0);
+	// }
 
-	// connect() system call connects a socket to an address
-	res = connect(sock_fd, result->ai_addr, result->ai_addrlen);
-	if (res != -1) {
-		DEBUG("You are now connected to IP %s, port %s\n", conf_opts.splitfs_server_ips[0], conf_opts.splitfs_server_port);
-	} else {
-		DEBUG("unable to connect\n");
-		error = errno;
-		_hub_find_fileop("posix")->CLOSE(sock_fd);
-	}
+	// // connect() system call connects a socket to an address
+	// res = connect(sock_fd, result->ai_addr, result->ai_addrlen);
+	// if (res != -1) {
+	// 	DEBUG("You are now connected to IP %s, port %s\n", conf_opts.splitfs_server_ips[0], conf_opts.splitfs_server_port);
+	// } else {
+	// 	DEBUG("unable to connect\n");
+	// 	error = errno;
+	// 	_hub_find_fileop("posix")->CLOSE(sock_fd);
+	// }
 
-	freeaddrinfo(result);
-	cxn_fd = sock_fd;
+	// freeaddrinfo(result);
+	// cxn_fd = sock_fd;
 #elif FILE_SERVER 
 	pthread_attr_t thread_attr;
 	pthread_t thread;
@@ -5942,15 +5943,19 @@ RETT_PWRITE _nvp_PWRITE(INTF_PWRITE)
 		   "offset = %lu, count = %lu\n",
 		   file, offset, count);
 	struct remote_request request;
+	struct metadata_response mr;
+	struct addrinfo hints;
+	struct addrinfo *res;
+	char addr_buf[INET_ADDRSTRLEN];
+	int bytes_read, server_fd;
 	memset(&request, 0, sizeof(struct remote_request));
 	request.type = PWRITE;
 	request.fd = file;
 	request.count = count;
 	request.offset = offset;
 
-	// first we sent the request with metadata about the write call 
-	// so that the server knows what to expect
-	int ret = write(cxn_fd, &request, sizeof(request));
+	// first we send the request with metadata about the write call 
+	int ret = write(metadata_server_fd, &request, sizeof(request));
 	if (ret < sizeof(request)) {
 		DEBUG("failed or partial write sending write request\n");
 		GLOBAL_UNLOCK_WR();
@@ -5958,31 +5963,83 @@ RETT_PWRITE _nvp_PWRITE(INTF_PWRITE)
 		return -1;
 	}
 
-	// then we send the data to be written
-	ret = write(cxn_fd, buf, count);
-	if (ret < count) {
-		DEBUG("failed or partial write sending write data\n");
-		DEBUG("sent %d out of %d bytes\n", ret, count);
+	// then we should get back some info about where to send this data
+	// we should establish connections with these file servers
+	DEBUG("reading metadata response\n");
+	bytes_read = read_from_socket(metadata_server_fd, &mr, sizeof(struct metadata_response));
+	if (bytes_read <= 0) {
+		DEBUG("disconnected from metadata server\n");
 		GLOBAL_UNLOCK_WR();
 		END_TIMING(pwrite_t, write_time);
 		return -1;
+	}
+	DEBUG("got metadata response\n");
+
+	inet_ntop(AF_INET, &(mr.sa.sin_addr), addr_buf, INET_ADDRSTRLEN);
+	DEBUG("%s\n", addr_buf);
+
+	DEBUG("%s\n", mr.port);
+
+	hints.ai_family = AF_INET;
+	hints.ai_socktype = SOCK_STREAM;
+	hints.ai_protocol = 0;
+
+	ret = getaddrinfo(addr_buf, mr.port, &hints, &res);
+	if (ret < 0) {
+		DEBUG("unable to get addr info for %s\n", addr_buf);
+		GLOBAL_UNLOCK_WR();
+		END_TIMING(pwrite_t, write_time);
+		return ret;
 	}
 
-	// then we need to wait for a response to tell us how much actually got written
-	struct remote_response write_response;
-	memset(&write_response, 0, sizeof(struct remote_response));
-	int bytes_read = read_from_socket(cxn_fd, &write_response, sizeof(write_response));
-	if (bytes_read < sizeof(write_response)) {
-		DEBUG("failed or partial read\n");
+	// establish a connection with the server that holds the file
+	// TODO: update to account for replication/erasure coding
+	// TODO: use global constants for arguments to socket()
+	server_fd = socket(AF_INET, SOCK_STREAM, 0);
+	if (server_fd < 0) {
+		DEBUG("failed creating socket\n");
 		GLOBAL_UNLOCK_WR();
 		END_TIMING(pwrite_t, write_time);
-		return -1;
+		return server_fd;
 	}
+	ret = connect(server_fd, res->ai_addr, res->ai_addrlen);
+	if (ret < 0) {
+		DEBUG("failed to connect to server\n");
+		GLOBAL_UNLOCK_WR();
+		END_TIMING(pwrite_t, write_time);
+		return ret;
+	}
+	DEBUG("connected to file server\n");
+
+
+
+
+	// // then we send the data to be written
+	// ret = write(meta, buf, count);
+	// if (ret < count) {
+	// 	DEBUG("failed or partial write sending write data\n");
+	// 	DEBUG("sent %d out of %d bytes\n", ret, count);
+	// 	GLOBAL_UNLOCK_WR();
+	// 	END_TIMING(pwrite_t, write_time);
+	// 	return -1;
+	// }
+
+	// // then we need to wait for a response to tell us how much actually got written
+	// struct remote_response write_response;
+	// memset(&write_response, 0, sizeof(struct remote_response));
+	// int bytes_read = read_from_socket(metadata_server_fd, &write_response, sizeof(write_response));
+	// if (bytes_read < sizeof(write_response)) {
+	// 	DEBUG("failed or partial read\n");
+	// 	GLOBAL_UNLOCK_WR();
+	// 	END_TIMING(pwrite_t, write_time);
+	// 	return -1;
+	// }
 
 	END_TIMING(pwrite_t, write_time);
 	GLOBAL_UNLOCK_WR();
 
-	return write_response.return_value;
+	// return write_response.return_value;
+	return 0;
 #endif 
 
 	struct NVFile* nvf = &_nvp_fd_lookup[file];

@@ -2,6 +2,8 @@
 #define REMOTE_H
 
 #include <zookeeper/zookeeper.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
 
 #define CONFIG_PATH "../config"
 #define BUFFER_SIZE 256
@@ -43,6 +45,13 @@ struct remote_response {
     enum remote_request_type type; // type of original request, just as a sanity check
     int fd;
     size_t return_value;
+};
+
+struct metadata_response {
+    enum remote_request_type type;
+    int fd;
+    struct sockaddr_in sa;
+    char port[8];
 };
 
 // options read from a config file
