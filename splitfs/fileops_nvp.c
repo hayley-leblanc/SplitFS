@@ -6078,35 +6078,45 @@ RETT_PWRITE _nvp_PWRITE(INTF_PWRITE)
 	}
 	DEBUG("connected to file server\n");
 
+	// send the file server an initial request so that it knows what file we are writing 
+	// to and how many bytes are being sent
+	// TODO: when we distribute files across multiple servers, we'll need to construct 
+	// and send multiple of these requests
+	ret = write(server_fd, &request, sizeof(request));
+	if (ret < sizeof(request)) {
+		DEBUG("failed or partial write sending write request\n");
+		GLOBAL_UNLOCK_WR();
+		END_TIMING(pwrite_t, write_time);
+		return -1;
+	}
 
 
+	ret = write(server_fd, buf, count);
+	if (ret < 0) {
+		DEBUG("failed or partial write sending write data\n");
+		GLOBAL_UNLOCK_WR();
+		END_TIMING(pwrite_t, write_time);
+		return -1;
+	}
 
-	// // then we send the data to be written
-	// ret = write(meta, buf, count);
-	// if (ret < count) {
-	// 	DEBUG("failed or partial write sending write data\n");
-	// 	DEBUG("sent %d out of %d bytes\n", ret, count);
-	// 	GLOBAL_UNLOCK_WR();
-	// 	END_TIMING(pwrite_t, write_time);
-	// 	return -1;
-	// }
+	// then we need to wait for a response to tell us how much actually got written
+	struct remote_response write_response;
+	memset(&write_response, 0, sizeof(struct remote_response));
+	bytes_read = read_from_socket(metadata_server_fd, &write_response, sizeof(write_response));
+	if (bytes_read < sizeof(write_response)) {
+		DEBUG("failed or partial read\n");
+		GLOBAL_UNLOCK_WR();
+		END_TIMING(pwrite_t, write_time);
+		return -1;
+	}
 
-	// // then we need to wait for a response to tell us how much actually got written
-	// struct remote_response write_response;
-	// memset(&write_response, 0, sizeof(struct remote_response));
-	// int bytes_read = read_from_socket(metadata_server_fd, &write_response, sizeof(write_response));
-	// if (bytes_read < sizeof(write_response)) {
-	// 	DEBUG("failed or partial read\n");
-	// 	GLOBAL_UNLOCK_WR();
-	// 	END_TIMING(pwrite_t, write_time);
-	// 	return -1;
-	// }
+	close(server_fd);
 
 	END_TIMING(pwrite_t, write_time);
 	GLOBAL_UNLOCK_WR();
 
-	// return write_response.return_value;
-	return 0;
+	return write_response.return_value;
+	// return 0;
 #endif 
 
 	struct NVFile* nvf = &_nvp_fd_lookup[file];

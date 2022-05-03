@@ -24,6 +24,8 @@ int main(void) {
 		return ret;
 	}
 
+	printf("wrote %d bytes\n", ret);
+
 	// ret = pread(fd, read_buf, 16, 0);
 	// if (ret < 0) {
 	// 	perror("read");
