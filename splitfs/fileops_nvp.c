@@ -3740,22 +3740,55 @@ RETT_PWRITE _nvp_do_pwrite(INTF_PWRITE,
 {
 	DEBUG("_nvp_do_pwrite\n");
 #if METADATA_SERVER
-	int ret = read_persistent_metadata(nvf);
+	int ret, client_fd;
+	struct file_metadata *fm;
+	struct sockaddr_in *sa;
+	struct metadata_response mr;
+	struct pwrite_in input;
+
+	// client_fd = *(int*)buf;
+	input = *(struct pwrite_in*)buf;
+	client_fd = input.client_fd;
+	sa = input.dst;
+
+	ret = read_persistent_metadata(nvf);
 	if (ret < 0) {
 		DEBUG("failed reading persistent metadata from file descriptor %d\n", nvf->fd);
 		return ret;
 	}
-	struct file_metadata *fm = &nvf->node->persistent_metadata;
+	fm = &nvf->node->persistent_metadata;
 	DEBUG("metadata server processing write\n");
 	// we need to figure out where the file currently lives (if anywhere), and tell
 	// the client to send the file there. right now we do not replicate or split up files
 	// into chunks
-	if (fm->length == 0) {
-		// file has not been placed anywhere yet
-		
-	} else {
-		// file has been placed on at least one file server
+	// if (fm->length == 0) {
+	// 	// file has not been placed anywhere yet
+	// 	sa = choose_fileserver();
+	// 	if (sa == NULL) {
+	// 		// TODO: set errno?
+	// 		return -1;
+	// 	}
+	// } else {
+	// 	// file has been placed on at least one file server
+	// 	// TODO: handle this case
+	// }
+
+	// send the client the sockaddr so it can connect to the server
+
+	mr.type = PWRITE;
+	mr.fd = file;
+	mr.sa = *sa;
+	// mr.port = input.port;
+	memcpy(mr.port, input.port, 8);
+
+	printf("sending metadata response\n");
+	ret = write(client_fd, &mr, sizeof(struct metadata_response));
+	if (ret < 0) {
+		perror("write");
+		return ret;
 	}
+
+	return 0; // TODO: should return the number of bytes written
 	
 #else 
 	CHECK_RESOLVE_FILEOPS(_nvp_);

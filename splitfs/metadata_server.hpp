@@ -15,17 +15,17 @@ std::vector<int> server_fd_vec, client_fd_vec;
 std::map<int, char[MAX_FILENAME_LEN]> fd_to_name; // map open fd to corresponding file name
 std::map<int, int> fd_to_client; // map open fd to fd of its client
 
-std::map<int, struct sockaddr> fd_to_server_ip;
+std::map<int, struct sockaddr_in> fd_to_server_ip;
 
 void* splitfs_server_connect(void* args);
 void* client_connect(void* args);
 void* client_listen(void* args);
 void* server_listen(void* args);
-int read_from_client(int client_fd);
+int read_from_client(int client_fd, struct config_options *conf_opts);
 int manage_create(int client_fd, struct remote_request *request, struct remote_response &response);
 int manage_open(int client_fd, struct remote_request *request, struct remote_response &response);
 int manage_close(int client_fd, struct remote_request *request, struct remote_response &response);
-int manage_pwrite(int client_fd, struct remote_request *request, struct remote_response &response);
+int manage_pwrite(int client_fd, struct config_options *conf_opts, struct remote_request *request, struct remote_response &response);
 void cleanup();
 
 #endif 
