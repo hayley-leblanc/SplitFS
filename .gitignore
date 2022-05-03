@@ -19,7 +19,6 @@ dist_tests/client
 dist_tests/server
 
 zookeeper/logs/
-zookeeper/
 
 rsync/workload/
 rsync/rsync
