@@ -26,18 +26,18 @@ all: sofiles $(COMMON_OBJ) metadata_server
 include common.mk
 
 #sofiles: $(COMMON_OBJ) $(NVP_SOFILES) $(MONETA_SOFILES) $(SDSSD_SOFILES) $(BANKSHOT_SOFILES)
-sofiles: $(COMMON_OBJ) $(NVP_SOFILES) metadata.so
+sofiles: $(COMMON_OBJ) $(NVP_SOFILES)
 #$(NVP_STACK) $(NVP_LOG) $(NVP_LRU_CACHE) 
 
 
 #     lib*.so files      #
 
 # The only .so which doesn't follow the naming convention for its underlying file.
-libnvp.so: fileops_hub.o $(COMMON_OBJ) metadata.so
+libnvp.so: fileops_hub.o $(COMMON_OBJ)
 	$(CC) $(CLFAGS) -shared -Wl,-soname,$@ -o $@ $^ -ldl -funroll-loops -L. -lrt -L/usr/local/lib -lzookeeper_mt -DTHREADED
 
-metadata.so: metadata_server.cpp
-	$(CXX) -c $^ -L/usr/local/lib -lzookeeper_mt -DTHREADED -fPIC -o $@ -pthread
+# metadata.so: metadata_server.cpp
+# 	$(CXX) -c $^ -L/usr/local/lib -lzookeeper_mt -DTHREADED -fPIC -o $@ -pthread
 
 # Lives in a different directory.
 #libmoneta.so:
