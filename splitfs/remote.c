@@ -128,11 +128,11 @@ int read_from_socket(int sock, void *buf, size_t len) {
 	int cur_index = bytes_read;
 	while (cur_index < len) {
 		bytes_read = recv(sock, buf+cur_index, len-cur_index, 0);
-		if (bytes_read <= 0) {
-			printf("read failed\n");
+		if (bytes_read < 0) {
+            perror("recv");
 			return bytes_read;
 		}
 		cur_index += bytes_read;
 	}
-	return bytes_read;
+	return cur_index;
 }

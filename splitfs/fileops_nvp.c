@@ -6113,7 +6113,6 @@ RETT_PWRITE _nvp_PWRITE(INTF_PWRITE)
 
 	if (nvf->posix || nvf->node == NULL) {
 		DEBUG("Call posix PWRITE for fd %d\n", nvf->fd);
-		assert(0);
 		result = _nvp_fileops->PWRITE(CALL_PWRITE);
 		write_size += result;
 		num_posix_write++;
