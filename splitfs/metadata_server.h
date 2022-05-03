@@ -6,7 +6,7 @@
 
 // NOTE: this structure is recorded persistently
 struct fserver_id {
-    char ip_addr[64];
+    struct sockaddr_in ip_addr;
     char filepath[MAX_FILENAME_LEN];
 };
 
@@ -18,17 +18,14 @@ struct file_metadata {
 
 struct pwrite_in {
     int client_fd;
-    struct sockaddr_in* dst;
+    struct sockaddr_in dst;
+    int fileserver_fd;
     char port[8];
+    char filepath[MAX_FILENAME_LEN];
 };
 
-#ifdef __cplusplus
-extern "C" {
-#endif 
-struct sockaddr_in* choose_fileserver();
-#ifdef __cplusplus
-}
-#endif
+struct sockaddr_in* choose_fileserver(int *fd);
+
 
 
 #endif

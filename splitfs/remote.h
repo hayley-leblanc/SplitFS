@@ -24,7 +24,7 @@ enum remote_request_type {
     CREATE,
     OPEN,
     CLOSE,
-    METADATA_WRITE_NOTIF,
+    METADATA_WRITE_NOTIF
 };
 
 #define MAX_FILENAME_LEN 256 // maximum filename size in ext4
