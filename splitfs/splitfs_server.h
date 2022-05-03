@@ -64,4 +64,39 @@ void new_file_fd_node(int local_fd, int remote_fd) {
     }
 }
 
+void delete_file_fd_node(int local_fd) {
+    struct ll_node *cur = file_fd_list_head;
+    struct ll_node *prev = NULL;
+    while (cur != NULL) {
+        if (cur->fd == local_fd) {
+            if (prev == NULL) {
+                file_fd_list_head = cur->next;
+            } else {
+                prev->next = cur->next;
+            }
+            free(cur);
+            break;
+        }
+        cur = cur->next;
+    }
+}
+
+void delete_peer_fd_node(int socket) {
+    struct ll_node *cur = peer_fd_list_head;
+    struct ll_node *prev = NULL;
+    while (cur != NULL) {
+        if (cur->fd == socket) {
+            if (prev == NULL) {
+                peer_fd_list_head = cur->next;
+            } else {
+                prev->next = cur->next;
+            }
+            free(cur);
+            break;
+        }
+        cur = cur->next;
+    }
+}
+
+
 #endif 

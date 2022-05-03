@@ -296,7 +296,7 @@ int handle_metadata_notif(struct ll_node *node) {
 }
 
 int handle_client_request(struct ll_node *node) {
-	int ret, bytes_read, remote_fd, local_fd;
+	int ret, bytes_read, remote_fd, local_fd = 0;
 	struct remote_request request;
 	struct remote_response response;
 	struct ll_node *cur;
@@ -317,6 +317,10 @@ int handle_client_request(struct ll_node *node) {
 			break;
 		}
 		cur = cur->next;
+	}
+	if (cur == NULL || local_fd == 0) {
+		DEBUG("requested file is not open\n");
+		return -1;
 	}
 
 	// allocate space to receive the incoming data
@@ -349,7 +353,9 @@ int handle_client_request(struct ll_node *node) {
 	DEBUG("sent response to metadata server\n");
 
 
-	// TODO: close the file and delete its entry in the fd linked list?
+	// TODO: keep the file open for longer in case we want to read/write to it again soon
+	delete_file_fd_node(local_fd);
+	close(local_fd);
 	return 0;
 }
 
