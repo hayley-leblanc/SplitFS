@@ -15,6 +15,7 @@
 RETT_CLOSE _nvp_REAL_CLOSE(INTF_CLOSE, ino_t serialno, int async_file_closing);
 size_t swap_extents(struct NVFile *nvf, int close);
 void close_cloexec_files();
+int read_persistent_metadata(struct NVFile *nvf);
 
 RETT_OPEN _nvp_OPEN(INTF_OPEN);
 RETT_PWRITE _nvp_PWRITE(INTF_PWRITE);

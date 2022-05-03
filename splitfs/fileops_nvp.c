@@ -3727,6 +3727,11 @@ RETT_PWRITE write_to_file_mmap(int file,
 	return write_count;
 }
 
+int read_persistent_metadata(struct NVFile *nvf) {
+	int ret = _nvp_fileops->PREAD(nvf->fd, &nvf->node->persistent_metadata, sizeof(struct file_metadata), 0);
+	return ret;
+}
+
 RETT_PWRITE _nvp_do_pwrite(INTF_PWRITE,
 			   int wr_lock,
 			   int cpuid,
@@ -3735,6 +3740,58 @@ RETT_PWRITE _nvp_do_pwrite(INTF_PWRITE,
 			   struct NVTable_maps *tbl_over)
 {
 	DEBUG("_nvp_do_pwrite\n");
+#if METADATA_SERVER
+	int ret, client_fd;
+	struct file_metadata *fm;
+	struct sockaddr_in *sa;
+	struct metadata_response mr;
+	struct pwrite_in input;
+
+	// client_fd = *(int*)buf;
+	input = *(struct pwrite_in*)buf;
+	client_fd = input.client_fd;
+	sa = input.dst;
+
+	ret = read_persistent_metadata(nvf);
+	if (ret < 0) {
+		DEBUG("failed reading persistent metadata from file descriptor %d\n", nvf->fd);
+		return ret;
+	}
+	fm = &nvf->node->persistent_metadata;
+	DEBUG("metadata server processing write\n");
+	// we need to figure out where the file currently lives (if anywhere), and tell
+	// the client to send the file there. right now we do not replicate or split up files
+	// into chunks
+	// if (fm->length == 0) {
+	// 	// file has not been placed anywhere yet
+	// 	sa = choose_fileserver();
+	// 	if (sa == NULL) {
+	// 		// TODO: set errno?
+	// 		return -1;
+	// 	}
+	// } else {
+	// 	// file has been placed on at least one file server
+	// 	// TODO: handle this case
+	// }
+
+	// send the client the sockaddr so it can connect to the server
+
+	mr.type = PWRITE;
+	mr.fd = file;
+	mr.sa = *sa;
+	// mr.port = input.port;
+	memcpy(mr.port, input.port, 8);
+
+	printf("sending metadata response\n");
+	ret = write(client_fd, &mr, sizeof(struct metadata_response));
+	if (ret < 0) {
+		perror("write");
+		return ret;
+	}
+
+	return 0; // TODO: should return the number of bytes written
+	
+#else 
 	CHECK_RESOLVE_FILEOPS(_nvp_);
 	off_t write_offset, offset_within_mmap;
 	size_t write_count, extent_length;
@@ -4058,6 +4115,7 @@ appends:
 
 	 return write_count;
 // #endif
+#endif
 }
 
  void _nvp_test_invalidate_node(struct NVFile* nvf)
@@ -4721,6 +4779,15 @@ RETT_OPEN _nvp_OPEN(INTF_OPEN)
 	NVP_UNLOCK_FD_WR(nvf);
 
 	// add_fd_path_node(fd, path);
+
+#if METADATA_SERVER 
+	// initialize persistent metadata for the file at the metadata server
+	nvf->node->persistent_metadata.length = 0;
+	memset(nvf->node->persistent_metadata.location.ip_addr, 0, 64);
+	strcpy(nvf->node->persistent_metadata.location.filepath, path);
+	// TODO: handle errors from the pwrite
+	_nvp_fileops->PWRITE(nvf->fd, &nvf->node->persistent_metadata, sizeof(struct file_metadata), 0);
+#endif 
 
 	errno = 0;
 	END_TIMING(open_t, open_time);
@@ -5938,7 +6005,7 @@ RETT_PWRITE _nvp_PWRITE(INTF_PWRITE)
 	return result;
 #endif
 
-#if CLIENT 
+#if CLIENT
 	DEBUG("sending write request to server for fd = %d, "
 		   "offset = %lu, count = %lu\n",
 		   file, offset, count);
@@ -6046,6 +6113,7 @@ RETT_PWRITE _nvp_PWRITE(INTF_PWRITE)
 
 	if (nvf->posix || nvf->node == NULL) {
 		DEBUG("Call posix PWRITE for fd %d\n", nvf->fd);
+		assert(0);
 		result = _nvp_fileops->PWRITE(CALL_PWRITE);
 		write_size += result;
 		num_posix_write++;
@@ -6057,6 +6125,7 @@ RETT_PWRITE _nvp_PWRITE(INTF_PWRITE)
 
 	struct NVTable_maps *tbl_app = &_nvp_tbl_mmaps[nvf->node->serialno % APPEND_TBL_MAX];
 
+// TODO: make sure data journaling is off for metadata server
 #if DATA_JOURNALING_ENABLED
 	struct NVTable_maps *tbl_over = &_nvp_over_tbl_mmaps[nvf->node->serialno % OVER_TBL_MAX];
 #else
@@ -6068,6 +6137,7 @@ RETT_PWRITE _nvp_PWRITE(INTF_PWRITE)
 		END_TIMING(pwrite_t, write_time);
 		return result;
 	}
+	// TODO: do we need to keep this locking in when we use zookeeper-managed locks?
 	int cpuid = GET_CPUID();
 	NVP_LOCK_FD_RD(nvf, cpuid);
 	NVP_CHECK_NVF_VALID(nvf);

@@ -11,8 +11,10 @@
 #include <unistd.h>
 #include <iostream>
 #include <fcntl.h>
+#include <arpa/inet.h>
 
 #include "metadata_server.h"
+#include "metadata_server.hpp"
 #include "remote.h"
 
 using namespace std;
@@ -25,7 +27,10 @@ int main() {
     int ret;
     struct config_options conf_opts;
     char addr_buf[64];
-    pthread_attr_t server_cxn_thread_attr, client_cxn_thread_attr, client_select_thread_attr;
+    pthread_attr_t server_cxn_thread_attr, 
+                    client_cxn_thread_attr, 
+                    client_select_thread_attr,
+                    server_select_thread_attr;
 	
     ret = parse_config(&conf_opts, CONFIG_PATH, fclose, fopen);
     if (ret < 0) {
@@ -117,6 +122,27 @@ int main() {
         cleanup();
 		return ret;
 	}
+
+    // set up thread to listen for incoming server requests
+    ret = pthread_attr_init(&server_select_thread_attr);
+    if (ret != 0) {
+        perror("pthread_attr_init");
+        cleanup();
+        return ret;
+    }
+    ret = pthread_create(&server_select_thread, &server_select_thread_attr, server_listen, &conf_opts);
+    if (ret != 0) {
+        perror("pthread_create");
+        cleanup();
+        return ret;
+    }
+    ret = pthread_attr_destroy(&server_select_thread_attr);
+    if (ret != 0) {
+		perror("pthread_attr_destroy");
+        cleanup();
+		return ret;
+	}
+    
     
     cleanup();
     return 0;
@@ -134,6 +160,10 @@ void cleanup() {
 void* splitfs_server_connect(void* args) {
     struct addrinfo hints;
     struct addrinfo *result, *rp;
+    struct sockaddr sockname;
+    struct sockaddr_in *sockname_in;
+    socklen_t socklen = sizeof(struct sockaddr);
+    char addr_buf[INET_ADDRSTRLEN];
     unsigned int num_ips = 0;
     int i, opt = 1, listen_socket, ret, cxn_socket;
     struct config_options *conf_opts = (struct config_options*)args;
@@ -203,18 +233,78 @@ void* splitfs_server_connect(void* args) {
             if (cxn_socket < 0) {
                 perror("accept");
             }
-            printf("got connection to server with fd %d\n", cxn_socket);
-            // TODO: handle locking errors
-            pthread_mutex_lock(&server_fdset_lock);
-            FD_SET(cxn_socket, &server_fds);
-            // num_server_connections++;
-            server_fd_vec.push_back(cxn_socket);
-            pthread_mutex_unlock(&server_fdset_lock);
+            ret = getpeername(cxn_socket, &sockname, &socklen);
+            if (ret < 0) {
+                perror("getsockname");
+            } else {
+                sockname_in = (struct sockaddr_in*)&sockname;
+                inet_ntop(ip_protocol, &(sockname_in->sin_addr), addr_buf, INET_ADDRSTRLEN);
+                printf("got connection to server with fd %d at IP %s\n", cxn_socket, addr_buf);
+                pthread_mutex_lock(&server_fdset_lock);
+                FD_SET(cxn_socket, &server_fds);
+                fd_to_server_ip[cxn_socket] = *sockname_in;
+                server_fd_vec.push_back(cxn_socket);
+                printf("servers connected: %d\n", server_fd_vec.size());
+                pthread_mutex_unlock(&server_fdset_lock);
+                printf("done handling new connection\n");
+            }
         }
     }
 
     return NULL;
+}
 
+void* server_listen(void* args) {
+    struct timeval tv;
+    int ret, nfds = 0;
+    fd_set server_fds_copy;
+    struct remote_request request;
+
+    while(1) {
+        tv.tv_sec = 0;
+        tv.tv_usec = 100;
+
+        pthread_mutex_lock(&server_fdset_lock);
+        FD_ZERO(&server_fds_copy);
+        for (int i = 0; i < server_fd_vec.size(); i++) {
+            if (server_fd_vec[i] > nfds) {
+                nfds = server_fd_vec[i];
+            }
+        }
+        for (int i = 0; i <= nfds; i++) {
+            if (FD_ISSET(i, &server_fds)) {
+                FD_SET(i, &server_fds_copy);
+            }
+        }
+        pthread_mutex_unlock(&server_fdset_lock);
+        ret = select(nfds+1, &server_fds_copy, NULL, NULL, &tv);
+        if (ret < 0) {
+            perror("select");
+        } else {
+            // determine which fd is ready
+            pthread_mutex_lock(&server_fdset_lock);
+            for (int i = 0; i < server_fd_vec.size(); i++) {
+                if (FD_ISSET(server_fd_vec[i], &server_fds_copy)) {
+                    // TODO: right now, the only kind of message we can get 
+                    // is that the server disconnected. update this if 
+                    // we can get other messages
+                    // assert that reading from the fd always fails to make sure 
+                    // we remember to update this if anything needs to change here
+                    int fd = server_fd_vec[i];
+                    ret = read_from_socket(fd, &request, sizeof(struct remote_request));
+                    assert(ret <= 0);
+                    printf("server disconnected\n");
+                    FD_CLR(server_fd_vec[i], &server_fds);
+                    close(server_fd_vec[i]);
+                    fd_to_server_ip.erase(server_fd_vec[i]);
+                    server_fd_vec.erase(server_fd_vec.begin()+i);
+                    printf("servers connected: %d\n", server_fd_vec.size());
+                    break;
+                }
+            }
+            pthread_mutex_unlock(&server_fdset_lock);
+        }
+    }
 }
 
 void* client_connect(void* args) {
@@ -291,6 +381,7 @@ void* client_listen(void* args) {
     struct timeval tv;
     int ret, nfds = 0;
     fd_set client_fds_copy;
+    struct config_options *conf_opts = (struct config_options*)args;
     // watch the set of client fds to see when one has input
     while (1) {
         tv.tv_sec = 0;
@@ -322,7 +413,7 @@ void* client_listen(void* args) {
                     int fd = client_fd_vec[i];
                     found_fd = true;
                     pthread_mutex_unlock(&client_fdset_lock);
-                    ret = read_from_client(client_fd_vec[i]);
+                    ret = read_from_client(client_fd_vec[i], conf_opts);
                     if (ret < 0) {
                         return NULL;
                     }
@@ -339,7 +430,7 @@ void* client_listen(void* args) {
     return NULL;
 }
 
-int read_from_client(int client_fd) {
+int read_from_client(int client_fd, struct config_options *conf_opts) {
     int request_size = sizeof(struct remote_request);
     struct remote_request *request;
     char request_buffer[request_size];
@@ -389,7 +480,13 @@ int read_from_client(int client_fd) {
                 return ret;
             }
             break;
-
+        case PWRITE:
+            printf("client wants to write to a file\n");
+            ret = manage_pwrite(client_fd, conf_opts, request, response);
+            if (ret < 0) {
+                return ret;
+            }
+            break;
     }
 
     // TODO: if we fail to send a response, then we should clean up any open 
@@ -448,4 +545,40 @@ int manage_close(int client_fd, struct remote_request *request, struct remote_re
     response.return_value = ret;
 
     return ret;
+}
+
+// TODO: locking
+int manage_pwrite(int client_fd, struct config_options *conf_opts, struct remote_request *request, struct remote_response &response) {
+    struct sockaddr_in* sa;
+    struct pwrite_in input;
+    
+    printf("client wants to write %d bytes to offset %d\n", request->count, request->offset);
+    
+    
+    sa = choose_fileserver();
+    input.client_fd = client_fd;
+    input.dst = sa;
+    memcpy(input.port, conf_opts->splitfs_server_port, 8);
+
+    // since we don't yet have the buffer and have some extra info we need to pass 
+    // into pwrite, use the buffer argument to store that info
+    int ret = pwrite(request->fd, &input, request->count, request->offset);
+
+
+    response.type = PWRITE;
+    response.fd = request->fd;
+    response.return_value = ret;
+    return 0;
+}
+
+struct sockaddr_in* choose_fileserver() {
+    // choose a file server to put (part of) a file on
+    // for now just choose the first connected server
+    printf("servers connected: %d\n", server_fd_vec.size());
+    if (server_fd_vec.size() == 0) {
+        printf("No file servers are connected\n");
+        return NULL;
+    }
+    int fd = server_fd_vec[0];
+    return &fd_to_server_ip[fd];
 }
