@@ -536,13 +536,17 @@ int manage_open(int client_fd, struct remote_request *request, struct remote_res
 
 // TODO: locking
 int manage_close(int client_fd, struct remote_request *request, struct remote_response &response) {
+    printf("closing file\n");
     int ret = close(request->fd);
+    printf("closed file\n");
     fd_to_name.erase(request->fd);
     fd_to_client.erase(request->fd);
 
     response.type = CLOSE;
     response.fd = request->fd;
     response.return_value = ret;
+
+    printf("done closing file\n");
 
     return ret;
 }
@@ -551,19 +555,37 @@ int manage_close(int client_fd, struct remote_request *request, struct remote_re
 int manage_pwrite(int client_fd, struct config_options *conf_opts, struct remote_request *request, struct remote_response &response) {
     struct sockaddr_in* sa;
     struct pwrite_in input;
+    struct remote_request fileserver_notif;
+    int fileserver_fd, ret;
     
     printf("client wants to write %d bytes to offset %d\n", request->count, request->offset);
     
-    
-    sa = choose_fileserver();
+    // TODO: what if the file already lives somewhere? do a lookup
+    sa = choose_fileserver(&fileserver_fd);
     input.client_fd = client_fd;
-    input.dst = sa;
+    input.dst = *sa;
+    input.fileserver_fd = fileserver_fd;
     memcpy(input.port, conf_opts->splitfs_server_port, 8);
+    strcpy(input.filepath, fd_to_name[request->fd]);
+
+    // tell fileservers to expect the file
+    fileserver_notif.type = METADATA_WRITE_NOTIF;
+    fileserver_notif.fd = request->fd;
+    strcpy(fileserver_notif.file_path, fd_to_name[request->fd]);
+    fileserver_notif.count = request->count;
+    fileserver_notif.offset = request->offset;
+
+    ret = write(fileserver_fd, &fileserver_notif, sizeof(remote_request));
+    if (ret < sizeof(remote_request)) {
+        perror("write");
+        return ret;
+    }
+    printf("sent message to fileserver\n");
 
     // since we don't yet have the buffer and have some extra info we need to pass 
     // into pwrite, use the buffer argument to store that info
-    int ret = pwrite(request->fd, &input, request->count, request->offset);
-
+    ret = pwrite(request->fd, &input, request->count, request->offset);
+    printf("wrote %d bytes\n", ret);
 
     response.type = PWRITE;
     response.fd = request->fd;
@@ -571,7 +593,8 @@ int manage_pwrite(int client_fd, struct config_options *conf_opts, struct remote
     return 0;
 }
 
-struct sockaddr_in* choose_fileserver() {
+struct sockaddr_in* choose_fileserver(int *fd) {
+    struct sockaddr_in *sa;
     // choose a file server to put (part of) a file on
     // for now just choose the first connected server
     printf("servers connected: %d\n", server_fd_vec.size());
@@ -579,6 +602,8 @@ struct sockaddr_in* choose_fileserver() {
         printf("No file servers are connected\n");
         return NULL;
     }
-    int fd = server_fd_vec[0];
-    return &fd_to_server_ip[fd];
+    *fd = server_fd_vec[0];
+    sa = &(fd_to_server_ip[*fd]);
+    printf("sa: %p\n", sa);
+    return sa;
 }
