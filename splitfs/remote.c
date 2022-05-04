@@ -120,6 +120,12 @@ void parse_comma_separated(char *ip_buffer, char ips[8][16]) {
 }
 
 int read_from_socket(int sock, void *buf, size_t len) {
+    struct timeval tv;
+    tv.tv_sec = 1;
+    tv.tv_usec = 0;
+
+    // setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof(tv));
+
 	int bytes_read = recv(sock, buf, len, 0);
 	if (bytes_read < 0) {
         perror("recv");

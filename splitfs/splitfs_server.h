@@ -86,6 +86,9 @@ void delete_peer_fd_node(int socket) {
     struct ll_node *prev = NULL;
     while (cur != NULL) {
         if (cur->fd == socket) {
+            if (cur == peer_fd_list_tail) {
+                peer_fd_list_tail = prev;
+            }
             if (prev == NULL) {
                 peer_fd_list_head = cur->next;
             } else {
@@ -94,6 +97,7 @@ void delete_peer_fd_node(int socket) {
             free(cur);
             break;
         }
+        prev = cur;
         cur = cur->next;
     }
 }
