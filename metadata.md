@@ -22,6 +22,7 @@ This documentation describes the metadata server and how it interacts with the o
 - `struct remote_request` in splitfs/remote.h. Main structure used to send requests for operations between nodes. Clients send this to the metadata server when they want to perform a system call, and the metadata server uses it to inform file servers of incoming client requests.
 - `struct remote_response` in splitfs/remote.h. Smaller structure used to respond to requests (when a response is necessary).
 - `struct metadata_response` in splitfs/remote.h. Sent from the metadata server to a client to tell the client the file server location of a requested file.
+- `struct file_metadata` in splitfs/metadata_server.h. This structure contains the data that is stored persistently at the metadata server to record the full metadata for each file. It should be extended to be able to hold more file server locations. Note that this structure and `struct fserver_id` should **never** contain pointers to other structures since they are stored persistently; all data that referred to by either of these structs must live in these structs.
 
 ## Metadata server architecture
 The metadata server runs four threads:
