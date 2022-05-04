@@ -5895,18 +5895,17 @@ RETT_PREAD _nvp_PREAD(INTF_PREAD)
 	START_TIMING(pread_t, read_time);
 	GLOBAL_LOCK_WR();
 
-#if PASS_THROUGH_CALLS
-	result = _nvp_fileops->PREAD(CALL_PREAD);
-	GLOBAL_UNLOCK_WR();
-	END_TIMING(pread_t, read_time);
-	return result;
-#endif
-
-#if CLIENT 
+#if CLIENT
+	int bytes_read, ret, server_fd, bytes_to_read;
+	struct remote_request request;
+	struct remote_response response;
+	struct metadata_response mr;
+	struct addrinfo hints;
+	struct addrinfo *res;
+	char addr_buf[INET_ADDRSTRLEN];
 	DEBUG("sending read request to server for fd = %d, "
 		   "offset = %lu, count = %lu\n",
 		   file, offset, count);
-	struct remote_request request;
 	memset(&request, 0, sizeof(struct remote_request));
 	request.type = PREAD;
 	request.fd = file;
@@ -5914,58 +5913,105 @@ RETT_PREAD _nvp_PREAD(INTF_PREAD)
 	request.offset = offset;
 
 	// request file data
-	int ret = write(cxn_fd, &request, sizeof(request));
+	ret = write(metadata_server_fd, &request, sizeof(request));
 	if (ret < sizeof(request)) {
 		DEBUG("failed or partial write sending write request\n");
 		GLOBAL_UNLOCK_WR();
 		END_TIMING(pread_t, read_time);
 		return -1;
 	}
+	DEBUG("sent read request to metadata server\n");
 
-	// then read the sent data into the user buffer
-	// server will first send a response with return value/number of bytes read
-	// then the data
-
-	struct remote_response read_response;
-	memset(&read_response, 0, sizeof(read_response));
-	int bytes_read = read_from_socket(cxn_fd, &read_response, sizeof(read_response));
-	if (bytes_read < sizeof(read_response)) {
+	// the server will respond with the location of the file
+	// TODO: update for multiple servers. when we do, we probably can't reuse the 
+	// request struct for all incoming messages?
+	bytes_read = read_from_socket(metadata_server_fd, &mr, sizeof(mr));
+	if (bytes_read < sizeof(mr)) {
 		DEBUG("failed or partial read\n");
 		GLOBAL_UNLOCK_WR();
 		END_TIMING(pread_t, read_time);
 		return -1;
 	}
 
-	// we should be able to read directly into the user buffer
-	if (read_response.return_value < 0) {
-		DEBUG("server failed processing read\n");
-		return read_response.return_value;
+	inet_ntop(AF_INET, &(mr.sa.sin_addr), addr_buf, INET_ADDRSTRLEN);
+	DEBUG("%s\n", addr_buf);
+
+	DEBUG("%s\n", mr.port);
+
+	hints.ai_family = AF_INET;
+	hints.ai_socktype = SOCK_STREAM;
+	hints.ai_protocol = 0;
+
+	ret = getaddrinfo(addr_buf, mr.port, &hints, &res);
+	if (ret < 0) {
+		DEBUG("unable to get addr info for %s\n", addr_buf);
+		GLOBAL_UNLOCK_WR();
+		END_TIMING(pread_t, read_time);
+		return ret;
 	}
-	int bytes_to_read = read_response.return_value;
-	if (bytes_to_read > 0) {
-		bytes_read = read_from_socket(cxn_fd, buf, bytes_to_read);
-		if (bytes_read < bytes_to_read) {
-			DEBUG("failed or partial read\n");
-			GLOBAL_UNLOCK_WR();
-			END_TIMING(pread_t, read_time);
-			return -1;
-		}
+
+	// establish a connection with the server that holds the file
+	// TODO: update to account for replication/erasure coding
+	// TODO: use global constants for arguments to socket()
+	server_fd = socket(AF_INET, SOCK_STREAM, 0);
+	if (server_fd < 0) {
+		DEBUG("failed creating socket\n");
+		GLOBAL_UNLOCK_WR();
+		END_TIMING(pread_t, read_time);
+		return server_fd;
 	}
+	ret = connect(server_fd, res->ai_addr, res->ai_addrlen);
+	if (ret < 0) {
+		DEBUG("failed to connect to server\n");
+		GLOBAL_UNLOCK_WR();
+		END_TIMING(pread_t, read_time);
+		return ret;
+	}
+	DEBUG("connected to file server\n");
+
+	// request file data from the server
+	// TODO: update for multiple servers
+	ret = write(server_fd, &request, sizeof(request));
+	if (ret < 0) {
+		DEBUG("failed or partial read request\n");
+		GLOBAL_UNLOCK_WR();
+		END_TIMING(pread_t, read_time);
+		return ret;
+	}
+	DEBUG("sent read request to server\n");
+
+	// read response saying how many bytes were actually read
+	bytes_read = read_from_socket(server_fd, &response, sizeof(response));
+	if (bytes_read < 0) {
+		DEBUG("failed reading from file server\n");
+		GLOBAL_UNLOCK_WR();
+		END_TIMING(pread_t, read_time);
+		return bytes_read;
+	}
+
+	DEBUG("bytes to read: %d\n", response.return_value);
+
+	bytes_read = read_from_socket(server_fd, buf, response.return_value);
+	DEBUG("got %d bytes from server\n");
+
 	GLOBAL_UNLOCK_WR();
 	END_TIMING(pread_t, read_time);
-	return bytes_to_read;
-
+	return bytes_read;
 #endif
 
+#if PASS_THROUGH_CALLS
+	result = _nvp_fileops->PREAD(CALL_PREAD);
+	GLOBAL_UNLOCK_WR();
+	END_TIMING(pread_t, read_time);
+	return result;
+#endif
 	struct NVFile* nvf = &_nvp_fd_lookup[file];
 	struct NVTable_maps *tbl_app = &_nvp_tbl_mmaps[nvf->node->serialno % APPEND_TBL_MAX];
-
 #if DATA_JOURNALING_ENABLED
 	struct NVTable_maps *tbl_over = &_nvp_over_tbl_mmaps[nvf->node->serialno % OVER_TBL_MAX];
 #else
 	struct NVTable_maps *tbl_over = NULL;
 #endif // DATA_JOURNALING_ENABLED
-
 	if (nvf->posix) {
 		DEBUG("Call posix PREAD for fd %d\n", nvf->fd);
 		result = _nvp_fileops->PREAD(CALL_PREAD);
@@ -5977,20 +6023,17 @@ RETT_PREAD _nvp_PREAD(INTF_PREAD)
 		GLOBAL_UNLOCK_WR();
 		return result;
 	}
-
 	result = _nvp_check_read_size_valid(count);
 	if (result <= 0) {
 		END_TIMING(pread_t, read_time);
 		GLOBAL_UNLOCK_WR();
 		return result;
 	}
-
 	int cpuid = GET_CPUID();
 
 	NVP_LOCK_FD_RD(nvf, cpuid);
 	NVP_CHECK_NVF_VALID(nvf);
 	NVP_LOCK_NODE_RD(nvf, cpuid);
-
 	TBL_ENTRY_LOCK_RD(tbl_app, cpuid);
 	TBL_ENTRY_LOCK_RD(tbl_over, cpuid);
 
@@ -6118,6 +6161,8 @@ RETT_PWRITE _nvp_PWRITE(INTF_PWRITE)
 		END_TIMING(pwrite_t, write_time);
 		return -1;
 	}
+
+	DEBUG("done writing to server\n");
 
 	// then we need to wait for a response to tell us how much actually got written
 	struct remote_response write_response;

@@ -26,15 +26,15 @@ int main(void) {
 
 	printf("wrote %d bytes\n", ret);
 
-	// ret = pread(fd, read_buf, 16, 0);
-	// if (ret < 0) {
-	// 	perror("read");
-	// 	return ret;
-	// }
+	ret = pread(fd, read_buf, 16, 0);
+	if (ret < 0) {
+		perror("read");
+		return ret;
+	}
 
 	close(fd);
 
-	// printf("DATA READ FROM REMOTE SERVER: %s\n", read_buf);
+	printf("DATA READ FROM REMOTE SERVER: %s\n", read_buf);
 
 
     return 0;
