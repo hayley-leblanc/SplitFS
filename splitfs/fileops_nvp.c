@@ -3798,7 +3798,14 @@ RETT_PWRITE _nvp_do_pwrite(INTF_PWRITE,
 	}
 
 	// update persistent metadata
-	_nvp_fileops->PWRITE(nvf->fd, &nvf->node->persistent_metadata, sizeof(struct file_metadata), 0);
+	DEBUG("updating persistent metadata\n");
+	ret = _nvp_fileops->PWRITE(nvf->fd, &nvf->node->persistent_metadata, sizeof(struct file_metadata), 0);
+	DEBUG("wrote %d bytes to file\n", ret);
+
+	nvf->node->length = 0 + ret;
+	nvf->node->true_length = nvf->node->length;
+	if (nvf->node->true_length >= LARGE_FILE_THRESHOLD)
+		nvf->node->is_large_file = 1;
 
 	TBL_ENTRY_UNLOCK_RD(tbl_over, cpuid);
 	TBL_ENTRY_UNLOCK_RD(tbl_app, cpuid);
