@@ -26,6 +26,7 @@ int manage_create(int client_fd, struct remote_request *request, struct remote_r
 int manage_open(int client_fd, struct remote_request *request, struct remote_response &response);
 int manage_close(int client_fd, struct remote_request *request, struct remote_response &response);
 int manage_pwrite(int client_fd, struct config_options *conf_opts, struct remote_request *request, struct remote_response &response);
+int manage_pread(int client_fd, struct config_options *conf_opts, struct remote_request *request, struct remote_response &response);
 void cleanup();
 
 #endif 

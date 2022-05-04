@@ -295,6 +295,7 @@ void* server_listen(void* args) {
                     assert(ret <= 0);
                     printf("server disconnected\n");
                     FD_CLR(server_fd_vec[i], &server_fds);
+                    printf("closing server fd %d\n", server_fd_vec[i]);
                     close(server_fd_vec[i]);
                     fd_to_server_ip.erase(server_fd_vec[i]);
                     server_fd_vec.erase(server_fd_vec.begin()+i);
@@ -452,6 +453,7 @@ int read_from_client(int client_fd, struct config_options *conf_opts) {
                 client_fd_vec.erase(client_fd_vec.begin()+i);
             }
         }
+        printf("closing client fd %d\n", client_fd);
         close(client_fd);
         pthread_mutex_unlock(&client_fdset_lock);
         return 0;
@@ -487,17 +489,26 @@ int read_from_client(int client_fd, struct config_options *conf_opts) {
                 return ret;
             }
             break;
+        case PREAD:
+            printf("client wants to read from a file\n");
+            ret = manage_pread(client_fd, conf_opts, request, response);
+            if (ret < 0) {
+                return ret;
+            }
+            break;
     }
 
-    // TODO: if we fail to send a response, then we should clean up any open 
-    // fds that the client might have had
-    // zookeeper will take care of releasing its locks, we just have to clean up
-    // old data about its open files
-    printf("sending response\n");
-    ret = write(client_fd, &response, sizeof(struct remote_response));
-    if (ret < 0) {
-        perror("write");
-        return ret;
+    if (request->type != PREAD) {
+        // TODO: if we fail to send a response, then we should clean up any open 
+        // fds that the client might have had
+        // zookeeper will take care of releasing its locks, we just have to clean up
+        // old data about its open files
+        printf("sending response\n");
+        ret = write(client_fd, &response, sizeof(struct remote_response));
+        if (ret < 0) {
+            perror("write");
+            return ret;
+        }
     }
 
     return 0;
@@ -536,7 +547,7 @@ int manage_open(int client_fd, struct remote_request *request, struct remote_res
 
 // TODO: locking
 int manage_close(int client_fd, struct remote_request *request, struct remote_response &response) {
-    printf("closing file\n");
+    printf("closing file descriptor %d\n", request->fd);
     int ret = close(request->fd);
     printf("closed file\n");
     fd_to_name.erase(request->fd);
@@ -575,12 +586,12 @@ int manage_pwrite(int client_fd, struct config_options *conf_opts, struct remote
     fileserver_notif.count = request->count;
     fileserver_notif.offset = request->offset;
 
-    ret = write(fileserver_fd, &fileserver_notif, sizeof(remote_request));
+    ret = write(fileserver_fd, &fileserver_notif, sizeof(struct remote_request));
     if (ret < sizeof(remote_request)) {
         perror("write");
         return ret;
     }
-    printf("sent message to fileserver\n");
+    printf("sent message to fileserver at fd %d\n", fileserver_fd);
 
     // since we don't yet have the buffer and have some extra info we need to pass 
     // into pwrite, use the buffer argument to store that info
@@ -590,6 +601,69 @@ int manage_pwrite(int client_fd, struct config_options *conf_opts, struct remote
     response.type = PWRITE;
     response.fd = request->fd;
     response.return_value = ret;
+    return 0;
+}
+
+int manage_pread(int client_fd, struct config_options *conf_opts, struct remote_request *request, struct remote_response &response) {
+    int bytes_read, ret, fileserver_fd = -1;
+    struct file_metadata fm;
+    struct metadata_response mr;
+    struct remote_request fileserver_notif;
+    char addr_buf[INET_ADDRSTRLEN];
+    printf("client wants to read %d bytes at offset %d\n", request->count, request->offset);
+
+    // we don't need to call splitfs to handle this. just read the local metadata file to see where 
+    // the file lives, if it has content anywhere
+    // the client-provided fd is the same one we use to read the file
+
+    bytes_read = pread(request->fd, &fm, sizeof(fm), 0);
+    if (bytes_read < sizeof(fm)) {
+        perror("pread");
+        return bytes_read;
+    }
+
+    // send a message to the server telling it to open the file 
+    fileserver_notif.type = METADATA_READ_NOTIF;
+    fileserver_notif.fd = request->fd;
+    strcpy(fileserver_notif.file_path, fd_to_name[request->fd]);
+    // we need to acquire the socket fd for the file server we want to communicate with
+    // but making a map from sockaddr_in -> fds is tricky. so let's just iterate over 
+    // the fd -> sockaddr_in map.
+    for (map<int, struct sockaddr_in>::iterator it = fd_to_server_ip.begin(); it != fd_to_server_ip.end(); it++) {
+        if (it->second.sin_addr.s_addr == fm.location.ip_addr.sin_addr.s_addr) {
+            fileserver_fd = it->first;
+        }
+    }
+    if (fileserver_fd < 0) {
+        printf("File does not live on any file servers\n");
+        return 0;
+    }
+
+    printf("sending notification to file server at fd %d\n", fileserver_fd);
+    ret = write(fileserver_fd, &fileserver_notif, sizeof(struct remote_request));
+    if (ret < sizeof(fileserver_notif)) {
+        perror("write");
+        return ret;
+    }
+    printf("sent notification to fileserver\n");
+
+
+    // build a response to tell the client where the file lives
+    // we actually use the request object for this because it's set up better 
+    // to send locations
+    mr.type = PREAD;
+    mr.fd = request->fd;
+    mr.sa = fd_to_server_ip[fileserver_fd];
+    memcpy(mr.port, conf_opts->splitfs_server_port, 8);
+
+    inet_ntop(AF_INET, &(mr.sa.sin_addr), addr_buf, INET_ADDRSTRLEN);
+	printf("%s\n", addr_buf);
+
+    ret = write(client_fd, &mr, sizeof(mr));
+    if (ret < sizeof(mr)) {
+        perror("write");
+        return ret;
+    }
     return 0;
 }
 
