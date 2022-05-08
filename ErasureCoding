@@ -1,0 +1,148 @@
+#include <stdio.h>
+#include <string.h>
+#pragma warning(disable : 4996)
+#define MAX 256
+
+int accesstime[];
+int threshold = 10;
+int hotdata[100];
+int colddata[100];
+int hind=0;
+int cind=0;
+void assignHC(int index, int threshold)
+{
+    if(accesstime[index] > threshold)
+    {
+        hotdata[hind] = index;
+        hind++;
+    }
+    else
+    {
+        colddata[cind] = index;
+        cind++;
+    }
+}
+bool parity(unsigned int n)
+{
+    bool p = 0;
+    while(n)
+    {
+        p = !p;
+        n = n & (n - 1);
+    }       
+    return p;
+}
+
+int main()
+{
+    unsigned int n = 7;
+    printf("Parity of no %d = %s",  n, (getParity(n)? "odd": "even"));
+    getchar();
+    return 0;
+}
+
+int convertFile()
+{
+    int n;
+    FILE* fp1, * fp2;
+    char c;
+   
+    fp1 = fopen("C:\\Users\\Sangamithra Goutham\\OneDrive\\Documents\\SampleText.txt", "r");
+    fp2 = fopen("C:\\Users\\Sangamithra Goutham\\OneDrive\\Documents\\SampleText2.txt", "wb");
+
+    while (!feof(fp1))
+    {
+        fread(&c, sizeof(char), 1, fp1);
+        n = c;
+        fwrite(&n, sizeof(int), 1, fp2);
+    }
+
+    fclose(fp1);
+    fclose(fp2);
+    return 0;
+}
+
+char* StringToBinaryConversion(char* s)
+{
+    if(s == NULL) 
+    {
+        return 0; 
+    }
+
+    size_t len = strlen(s);
+    char *bin = malloc(len*8 + 1); 
+    bin[0] = '\0';
+
+    for(size_t i = 0; i < len; ++i) 
+    {
+        char ch = s[i];
+        for(int j = 7; j >= 0; --j)
+        {
+            if(ch & (1 << j)) 
+            {
+                strcat(bin,"1");
+            } 
+            else 
+            {
+                strcat(bin,"0");
+            }
+        }
+    }
+    return bin;
+}
+
+FILE *newfile(int fc) 
+{
+    char fopt[15];
+
+    sprintf(fopt, "file_part%d", fc);
+    return fopen(fopt, "w");
+}
+
+int splitFile() 
+{
+    FILE *fp1;
+    FILE *fp2;
+    char line [128]; 
+    int fc=1, lc=1;
+
+    fp1 = fopen("test.txt","r");
+    if (!fp1)
+    {
+        return 1;
+    }
+
+    fp2 = newfile(fc);
+
+    while (fgets(line, sizeof line, fp1)!=NULL) 
+    {
+        if (lc == 5) 
+        {
+            fclose(fp2);
+            lc = 1;
+            fc++;
+            fp2 = newfile(fc);  
+            if (!fp2)
+            return 1;
+        }
+        fprintf(fp2,"%s\n", line);
+        lc++;
+    }
+    fclose(fp1);
+    return 0;
+}
+
+char* findXOR(char* s1, char* s2, int len)
+{
+    char xor[len];
+
+    for (int i=0; i<len; i++)
+    {
+        char temp = s1[i] ^ s2[i];
+        xor[i] = temp;
+    }
+
+    xor[i] = '\0';
+    
+    return xor;
+}
