@@ -596,7 +596,7 @@ int manage_pwrite(int client_fd, struct config_options *conf_opts, struct remote
     
     printf("client wants to write %d bytes to offset %d\n", request->count, request->offset);
     
-    acquire_lock(zh, fd_to_name[request->fd]);
+    // acquire_lock(zh, fd_to_name[request->fd]);
 
     // TODO: what if the file already lives somewhere? do a lookup
     sa = choose_fileserver(&fileserver_fd);
@@ -625,7 +625,7 @@ int manage_pwrite(int client_fd, struct config_options *conf_opts, struct remote
     ret = pwrite(request->fd, &input, request->count, request->offset);
     printf("wrote %d bytes\n", ret);
 
-    release_lock(zh, fd_to_name[request->fd]);
+    // release_lock(zh, fd_to_name[request->fd]);
 
     response.type = PWRITE;
     response.fd = request->fd;
