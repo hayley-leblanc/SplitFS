@@ -24,8 +24,8 @@ void acquire_lock(zhandle_t *zh, char *lock_path);
 
 int can_acquire_lock(zhandle_t *zh, char *lock_path, pthread_mutex_t *sync_lock);
 
-void exists_watcher(zhandle_t *zh, int type, int state, const char *path, void *watcherCtx)
+void exists_watcher(zhandle_t *zh, int type, int state, const char *path, void *watcherCtx);
 
 void stat_completion(int rc, const struct Stat *stat, const void *data);
-
+ 
 #endif /* ZK_LOCK */
