@@ -21,25 +21,28 @@
 
 using namespace std;
 
-// void release_lock(zhandle_t *zh, char *lock_path);
-
-// void acquire_lock(zhandle_t *zh, char *lock_path);
-
-// int can_acquire_lock(zhandle_t *zh, char *lock_path, pthread_mutex_t *sync_lock);
-
-// void exists_watcher(zhandle_t *zh, int type, int state, const char *path, void *watcherCtx);
-
 struct lockStructure
 {
     char *lock_path;
     pthread_mutex_t *sync_lock;
 };
 
-struct threadLock
-{
-    zhandle_t *zh;
-    char *lock_path;
-};
+
+void release_lock(zhandle_t *zh, char *lock_path);
+
+void acquire_lock(zhandle_t *zh, char *lock_path);
+
+int can_acquire_lock(zhandle_t *zh, char *lock_path, pthread_mutex_t *sync_lock);
+
+void exists_watcher(zhandle_t *zh, int type, int state, const char *path, void *watcherCtx);
+
+// stat completion function
+void stat_completion(int rc, const struct Stat *stat, 
+                     const void *data) { }
+
+void void_completion(int rc, const void *data) { }
+
+void strings_completion(int rc, const struct String_vector *strings, const void *data) { }
 
 // watcher callback function
 void watcher(zhandle_t *zzh, int type, int state, const char *path,
@@ -726,7 +729,7 @@ int can_acquire_lock(zhandle_t *zh, char *lock_path, pthread_mutex_t *sync_lock)
     struct String_vector strs;
 
     char *root_lock_path = "/_locknode";
-    int chil = zoo_get_children(zh, root_lock_path, 0, &strs);
+    int chil = zoo_aget_children(zh, root_lock_path, 0, strings_completion, NULL);
 
     printf("Trying to see if lock for %s can be acquired.\n", lock_path);
 
@@ -747,7 +750,7 @@ int can_acquire_lock(zhandle_t *zh, char *lock_path, pthread_mutex_t *sync_lock)
             void *watcherCtx = (void *)(&watcher_context); 
 
             printf("Setting watch on: %s", child_path);
-            int ret = zoo_wexists(zh, child_path, exists_watcher, watcherCtx, NULL);
+            int ret = zoo_awexists(zh, child_path, exists_watcher, watcherCtx, stat_completion, NULL);
             return 0;
         }
     }
@@ -784,6 +787,6 @@ void acquire_lock(zhandle_t *zh, char *lock_path)
 void release_lock(zhandle_t *zh, char *lock_path)
 {   
     printf("%s releasing lock.\n", lock_path);
-    int ret = zoo_delete(zh, lock_path, -1);
+    int ret = zoo_adelete(zh, lock_path, -1, void_completion, NULL);
     return;
 }
