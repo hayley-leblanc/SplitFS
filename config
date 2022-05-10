@@ -1,7 +1,7 @@
-metadata_server_ips=10.56.2.123;
+metadata_server_ips=10.56.1.58;
 metadata_server_port=7777;
 metadata_client_port=6666;
-splitfs_server_ips=10.56.2.58;
+splitfs_server_ips=10.56.1.193;
 splitfs_server_port=4444;
-zookeeper_ips=10.56.2.123;
+zookeeper_ips=10.56.1.58;
 zookeeper_port=5555;
