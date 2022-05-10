@@ -415,6 +415,7 @@ void* client_listen(void* args) {
                     found_fd = true;
                     pthread_mutex_unlock(&client_fdset_lock);
                     ret = read_from_client(client_fd_vec[i], conf_opts);
+                    printf("metadata: out of read_from_client\n");
                     if (ret < 0) {
                         return NULL;
                     }
@@ -488,6 +489,7 @@ int read_from_client(int client_fd, struct config_options *conf_opts) {
             if (ret < 0) {
                 return ret;
             }
+            printf("metadata: out of manage_pwrite function\n");
             break;
         case PREAD:
             printf("client wants to read from a file\n");

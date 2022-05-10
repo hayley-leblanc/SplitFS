@@ -15,7 +15,7 @@ int main(void) {
 		return fd;
 	}
 
-	printf("fd: %d\n", fd);
+	printf("client: fd: %d\n", fd);
 
 	int ret = pwrite(fd, write_buf, strlen(write_buf), 0);
 	if (ret < 0) {
@@ -24,7 +24,7 @@ int main(void) {
 		return ret;
 	}
 
-	printf("wrote %d bytes\n", ret);
+	printf("client: wrote %d bytes\n", ret);
 
 	ret = pread(fd, read_buf, 16, 0);
 	if (ret < 0) {
@@ -34,7 +34,7 @@ int main(void) {
 
 	close(fd);
 
-	printf("DATA READ FROM REMOTE SERVER: %s\n", read_buf);
+	printf("client: DATA READ FROM REMOTE SERVER: %s\n", read_buf);
 
 
     return 0;

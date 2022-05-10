@@ -4538,11 +4538,11 @@ RETT_OPEN _nvp_OPEN(INTF_OPEN)
 			GLOBAL_UNLOCK_WR();
 			return -1;
 		}
-		DEBUG("sent request\n");
+		DEBUG("client sent request\n");
 
 		struct remote_response create_response;
 		int response_size = sizeof(create_response);
-		DEBUG("waiting for response\n");
+		DEBUG("client waiting for response\n");
 		// wait for a response with the file descriptor from the server
 		int bytes_read = read_from_socket(metadata_server_fd, &create_response, response_size);
 		if (bytes_read < response_size) {
@@ -4551,6 +4551,7 @@ RETT_OPEN _nvp_OPEN(INTF_OPEN)
 			GLOBAL_UNLOCK_WR();
 			return -1;
 		}
+		DEBUG("Got response.\n");
 		result = create_response.fd;
 		END_TIMING(open_t, open_time);
 		GLOBAL_UNLOCK_WR();
@@ -6076,7 +6077,7 @@ RETT_PWRITE _nvp_PWRITE(INTF_PWRITE)
 #endif
 
 #if CLIENT
-	DEBUG("sending write request to server for fd = %d, "
+	DEBUG("RISHAB: sending write request to server for fd = %d, "
 		   "offset = %lu, count = %lu\n",
 		   file, offset, count);
 	struct remote_request request;

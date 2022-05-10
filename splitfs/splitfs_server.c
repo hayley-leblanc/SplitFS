@@ -347,7 +347,7 @@ int handle_client_request(struct ll_node *node) {
 			if (ret < 0) {
 				return ret;
 			}
-			DEBUG("finishing up pwrite\n");
+			DEBUG("splitfs_server.c: finishing up pwrite\n");
 			pthread_mutex_lock(&fdset_lock);
 			FD_CLR(node->fd, &fdset);
 			close(node->fd);
