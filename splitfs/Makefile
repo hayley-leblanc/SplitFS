@@ -20,7 +20,7 @@ REMOTE=remote.o
 NVP_SERVER=splitfs_server.o
 #NVP_STAGING_QUEUE=queue_impl.c
 
-all: sofiles $(COMMON_OBJ) metadata_server
+all: sofiles $(COMMON_OBJ)
 #$(NVP_STACK) $(NVP_LOG) $(NVP_LRU_CACHE)
 
 include common.mk
@@ -70,8 +70,8 @@ memcpy.o: memcpy.c
 # metadata_server.o: metadata_server.c
 # 	$(CC) $< -o $@ 
 
-metadata_server: $(REMOTE) metadata_server.o
-	$(CXX) $^ -o $@ -L/usr/local/lib -lzookeeper_mt -DTHREADED  -lpthread
+# metadata_server: $(REMOTE) metadata_server.o
+# 	$(CXX) $^ -o $@ -L/usr/local/lib -lzookeeper_mt -DTHREADED  -lpthread
 
 #  Boring stuff  #
 

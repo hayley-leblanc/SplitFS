@@ -1,1 +1,1 @@
-export LEDGER_YCSB=1; make clean; make; cd ../; export LD_LIBRARY_PATH=./splitfs; export NVP_TREE_FILE=./splitfs/bin/nvp_nvp.tree; cd splitfs; g++ remote.o metadata_server.cpp -o metadata_server -L/usr/local/lib -lzookeeper_mt -DTHREADED  -lpthread;  ./metadata_server.sh;
+export LEDGER_YCSB=1; make clean; make; cd ../; export LD_LIBRARY_PATH=./splitfs; export NVP_TREE_FILE=./splitfs/bin/nvp_nvp.tree; cd splitfs; 
