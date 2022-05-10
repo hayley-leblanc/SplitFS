@@ -76,6 +76,13 @@ int main() {
         return -1;
     }
     
+    // int ret;
+    char buffer[512];    
+    ret = zoo_create(zh, "/_locknode", NULL, -1, &ZOO_OPEN_ACL_UNSAFE, ZOO_PERSISTENT, buffer, sizeof(buffer));
+    if(ret!=ZOK)
+        printf("Error when creating root locknode %d\n", ret);
+    else
+        printf("\n\n\nCREATED ROOT LOCKNODE\n\n\n");
     // set up mutexes
     ret = pthread_mutex_init(&server_fdset_lock, NULL);
     if (ret < 0) {
@@ -711,6 +718,24 @@ struct sockaddr_in* choose_fileserver(int *fd) {
     return sa;
 }
 
+void create_parent_nodes(char* lock_path)
+{
+    int ret;
+    char buffer[500];
+    for(int i=1; i<strlen(lock_path); i++)
+    {
+        if(lock_path[i]=='/')
+        {
+            // printf("%d\n", i);
+            char tmp[500];
+            strncpy(tmp, lock_path, i);
+            tmp[i]='\0';
+            ret = zoo_create(zh, tmp, NULL, -1, &ZOO_OPEN_ACL_UNSAFE, ZOO_PERSISTENT, buffer, sizeof(buffer));
+            printf("Creating path %s, return code %d\n", tmp, ret);
+        }
+    }
+}
+
 // watcher function that processes when a node is cleared
 void exists_watcher(zhandle_t *zh, int type, int state, const char *path, void *watcherCtx)
 {   
@@ -768,17 +793,32 @@ int can_acquire_lock(zhandle_t *zh, char *lock_path_, pthread_mutex_t *sync_lock
     return 1;
 }
 
-void acquire_lock(zhandle_t *zh, char *lock_path)
+void acquire_lock(zhandle_t *zh, char *lock_path_)
 {
-    printf("%s wants to acquire lock.\n", lock_path);
+    printf("%s wants to acquire lock.\n", lock_path_);
     
     pthread_mutex_t sync_lock;
     pthread_mutex_init(&sync_lock, NULL);
 
     pthread_mutex_lock(&sync_lock);
 
-    if(can_acquire_lock(zh, lock_path, &sync_lock) && pthread_mutex_trylock(&sync_lock)==0)
+    char *root_lock_path = "/_locknode";
+
+    char lock_path[100];
+    lock_path[0] = '\0';
+    strcat(lock_path, root_lock_path);
+    strcat(lock_path, lock_path_);
+
+    int ret;
+    char buffer[512];
+
+    if(can_acquire_lock(zh, lock_path_, &sync_lock) && pthread_mutex_trylock(&sync_lock)==0)
     {
+        create_parent_nodes(lock_path);
+        ret = zoo_create(zh, lock_path, NULL, -1, &ZOO_OPEN_ACL_UNSAFE, ZOO_EPHEMERAL, buffer, sizeof(buffer));
+        if(ret!=ZOK)
+            printf("Error when creating locknode for %s: %d\n", lock_path, ret);
+
         printf("in loop Acquired lock for %s\n", lock_path);
         pthread_mutex_destroy(&sync_lock);
         return;
@@ -786,6 +826,11 @@ void acquire_lock(zhandle_t *zh, char *lock_path)
     else
     {
         while(pthread_mutex_trylock(&sync_lock)!=0);
+        create_parent_nodes(lock_path);
+        ret = zoo_create(zh, lock_path, NULL, -1, &ZOO_OPEN_ACL_UNSAFE, ZOO_EPHEMERAL, buffer, sizeof(buffer));
+        if(ret!=ZOK)
+            printf("Error when creating locknode for %s: %d\n", lock_path, ret);
+
         pthread_mutex_destroy(&sync_lock);
         printf("outside loop Acquired lock for %s\n", lock_path);
         return;
