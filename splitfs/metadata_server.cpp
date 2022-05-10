@@ -596,7 +596,7 @@ int manage_pwrite(int client_fd, struct config_options *conf_opts, struct remote
     
     printf("client wants to write %d bytes to offset %d\n", request->count, request->offset);
     
-    // acquire_lock(zh, fd_to_name[request->fd]);
+    acquire_lock(zh, fd_to_name[request->fd]);
 
     // TODO: what if the file already lives somewhere? do a lookup
     sa = choose_fileserver(&fileserver_fd);
@@ -625,7 +625,7 @@ int manage_pwrite(int client_fd, struct config_options *conf_opts, struct remote
     ret = pwrite(request->fd, &input, request->count, request->offset);
     printf("wrote %d bytes\n", ret);
 
-    // release_lock(zh, fd_to_name[request->fd]);
+    release_lock(zh, fd_to_name[request->fd]);
 
     response.type = PWRITE;
     response.fd = request->fd;
@@ -725,11 +725,18 @@ void exists_watcher(zhandle_t *zh, int type, int state, const char *path, void *
     }
 }
 
-int can_acquire_lock(zhandle_t *zh, char *lock_path, pthread_mutex_t *sync_lock)
+int can_acquire_lock(zhandle_t *zh, char *lock_path_, pthread_mutex_t *sync_lock)
 {
     struct String_vector strs;
 
     char *root_lock_path = "/_locknode";
+
+    char lock_path[100];
+    lock_path[0] = '\0';
+    strcat(lock_path, root_lock_path);
+    strcat(lock_path, lock_path_);
+
+
     int chil = zoo_get_children(zh, root_lock_path, 0, &strs);
 
     printf("Trying to see if lock for %s can be acquired.\n", lock_path);
@@ -785,8 +792,15 @@ void acquire_lock(zhandle_t *zh, char *lock_path)
     }
 }
 
-void release_lock(zhandle_t *zh, char *lock_path)
-{   
+void release_lock(zhandle_t *zh, char *lock_path_)
+{      
+    char *root_lock_path = "/_locknode";
+
+    char lock_path[100];
+    lock_path[0] = '\0';
+    strcat(lock_path, root_lock_path);
+    strcat(lock_path, lock_path_);
+
     printf("%s releasing lock.\n", lock_path);
     int ret = zoo_delete(zh, lock_path, -1);
     return;
