@@ -35,7 +35,7 @@ sudo make install
         - Make sure that `zookeeper_port` matches the port specified in `zookeeper/conf/zoo.conf`. 
         - If you are using Chameleon Cloud, use the internal IP addresses (which probably start with 10) rather than public floating IPs (which probably start with 128 or 129).
 3. On a file server node, `cd` to SplitFS/zookeeper and run `sudo bin/zkServer.sh start`. This starts the Zookeeper server running in the background with the configuration options specified in conf/zoo.cfg. 
-4. On either a file server node or a dedicated machine, `cd` to SplitFS/splitfs and run `./metadata_server` to start the metadata server. 
+4. On either a file server node or a dedicated machine, `cd` to SplitFS/splitfs and run `./metadata_server.sh` to start the metadata server. 
 5. On a file server node, cd to SplitFS/dist-tests and run `./setup.sh; ./run.sh ./server` to start a file server.
 6. On a client node, cd to SplitFS/dist-tests and run `./setup.sh; ./run.sh ./client` to run the client program. 
 
