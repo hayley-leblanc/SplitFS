@@ -3802,7 +3802,7 @@ RETT_PWRITE _nvp_do_pwrite(INTF_PWRITE,
 	fm->erasure_coding.flag=0;
 	
 	printf("nvp pwrite - flag %d \n", fm->erasure_coding.flag);
-	printf("nvp pwrite - location %d \n", fm->location.filepath);
+	printf("nvp pwrite - location %s \n", fm->location.filepath);
 
 	// update persistent metadata accordingly
 	if (fm->length < (offset + bytes_written)) {
