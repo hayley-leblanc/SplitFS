@@ -550,7 +550,9 @@ int read_from_client(int client_fd, struct config_options *conf_opts) {
 // on the metadata server, so the file is just created locally 
 // TODO: LOCKING!!
 int manage_create(int client_fd, struct remote_request *request, struct remote_response &response) {
+	printf("manage_create - 1 \n");
     int fd = open(request->file_path, request->flags, request->mode);
+	printf("manage_create - 2 \n");
     printf("created file on metadata server with fd %d\n", fd);
     strcpy(fd_to_name[fd], request->file_path);
     fd_to_client[fd] = client_fd;
@@ -558,6 +560,7 @@ int manage_create(int client_fd, struct remote_request *request, struct remote_r
     response.type = CREATE;
     response.fd = fd;
     response.return_value = fd;
+	printf("manage_create - 3 \n");
 
     return fd;
 }
@@ -596,14 +599,16 @@ int manage_close(int client_fd, struct remote_request *request, struct remote_re
 
 // TODO: locking
 int manage_pwrite(int client_fd, struct config_options *conf_opts, struct remote_request *request, struct remote_response &response) {
+	printf("manage_pwrite - 1 \n");
     struct sockaddr_in* sa;
     struct pwrite_in input;
     struct remote_request fileserver_notif;
     int fileserver_fd, ret;
-    
+    printf("manage_pwrite - 2 \n");
     printf("client wants to write %d bytes to offset %d\n", request->count, request->offset);
     
     acquire_lock(zh, fd_to_name[request->fd]);
+	printf("manage_pwrite - 3 \n");
 
     // TODO: what if the file already lives somewhere? do a lookup
     sa = choose_fileserver(&fileserver_fd);
@@ -612,6 +617,7 @@ int manage_pwrite(int client_fd, struct config_options *conf_opts, struct remote
     input.fileserver_fd = fileserver_fd;
     memcpy(input.port, conf_opts->splitfs_server_port, 8);
     strcpy(input.filepath, fd_to_name[request->fd]);
+	printf("manage_pwrite - 4 \n");
 
     // tell fileservers to expect the file
     fileserver_notif.type = METADATA_WRITE_NOTIF;
@@ -619,28 +625,33 @@ int manage_pwrite(int client_fd, struct config_options *conf_opts, struct remote
     strcpy(fileserver_notif.file_path, fd_to_name[request->fd]);
     fileserver_notif.count = request->count;
     fileserver_notif.offset = request->offset;
+	printf("manage_pwrite - 5 \n");
 
     ret = write(fileserver_fd, &fileserver_notif, sizeof(struct remote_request));
     if (ret < sizeof(remote_request)) {
         perror("write");
         return ret;
     }
+	printf("manage_pwrite - 6 \n");
     printf("sent message to fileserver at fd %d\n", fileserver_fd);
 
     // since we don't yet have the buffer and have some extra info we need to pass 
     // into pwrite, use the buffer argument to store that info
     ret = pwrite(request->fd, &input, request->count, request->offset);
     printf("wrote %d bytes\n", ret);
+	printf("manage_pwrite - 7 \n");
 
     release_lock(zh, fd_to_name[request->fd]);
 
     response.type = PWRITE;
     response.fd = request->fd;
     response.return_value = ret;
+	printf("manage_pwrite - 8 \n");
     return 0;
 }
 
 int manage_pread(int client_fd, struct config_options *conf_opts, struct remote_request *request, struct remote_response &response) {
+	printf("manage_pread - 1 \n");
     int bytes_read, ret, fileserver_fd = -1;
     struct file_metadata fm;
     struct metadata_response mr;
@@ -651,12 +662,14 @@ int manage_pread(int client_fd, struct config_options *conf_opts, struct remote_
     // we don't need to call splitfs to handle this. just read the local metadata file to see where 
     // the file lives, if it has content anywhere
     // the client-provided fd is the same one we use to read the file
+	printf("manage_pread - 2 \n");
 
     bytes_read = pread(request->fd, &fm, sizeof(fm), 0);
     if (bytes_read < sizeof(fm)) {
         perror("pread");
         return bytes_read;
     }
+	printf("manage_pread - 3 \n");
 
     // send a message to the server telling it to open the file 
     fileserver_notif.type = METADATA_READ_NOTIF;
@@ -670,10 +683,12 @@ int manage_pread(int client_fd, struct config_options *conf_opts, struct remote_
             fileserver_fd = it->first;
         }
     }
+	printf("manage_pread - 4 \n");
     if (fileserver_fd < 0) {
         printf("File does not live on any file servers\n");
         return 0;
     }
+	printf("manage_pread - 5 \n");
 
     printf("sending notification to file server at fd %d\n", fileserver_fd);
     ret = write(fileserver_fd, &fileserver_notif, sizeof(struct remote_request));
@@ -682,6 +697,7 @@ int manage_pread(int client_fd, struct config_options *conf_opts, struct remote_
         return ret;
     }
     printf("sent notification to fileserver\n");
+	printf("manage_pread - 6 \n");
 
 
     // build a response to tell the client where the file lives
@@ -694,12 +710,14 @@ int manage_pread(int client_fd, struct config_options *conf_opts, struct remote_
 
     inet_ntop(AF_INET, &(mr.sa.sin_addr), addr_buf, INET_ADDRSTRLEN);
 	printf("%s\n", addr_buf);
+	printf("manage_pread - 7 \n");
 
     ret = write(client_fd, &mr, sizeof(mr));
     if (ret < sizeof(mr)) {
         perror("write");
         return ret;
     }
+	printf("manage_pread - 8 \n");
     return 0;
 }
 
