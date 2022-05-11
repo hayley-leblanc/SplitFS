@@ -781,8 +781,8 @@ int can_acquire_lock(zhandle_t *zh, char *lock_path_, pthread_mutex_t *sync_lock
 
 
     char last_parent[500];
-
-    for(int i=strlen(lock_path)-1; i>=0; i--)
+    int i;
+    for(i=strlen(lock_path)-1; i>=0; i--)
         if(lock_path[i]=='/')
             break;
 
