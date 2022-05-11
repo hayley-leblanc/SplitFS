@@ -403,6 +403,7 @@ int handle_pwrite(struct ll_node* node, struct remote_request request) {
 
 	// allocate space to receive the incoming data
 	data_buf = malloc(request.count);
+	printf("server pwrite - trying to see data %s \n", data_buf );
 	if (data_buf == NULL) {
 		perror("malloc");
 		return -1;
