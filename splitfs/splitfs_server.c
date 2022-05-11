@@ -343,6 +343,7 @@ int handle_client_request(struct ll_node *node) {
 
 	switch(request.type) {
 		case PWRITE:
+			printf("switch case pwrite \n");
 			ret = handle_pwrite(node, request);
 			if (ret < 0) {
 				return ret;
@@ -357,6 +358,7 @@ int handle_client_request(struct ll_node *node) {
 			DEBUG("done handling pwrite, disconnected from client\n");
 			break;
 		case PREAD:
+			printf("switch case pread \n");
 			ret = handle_pread(node, request);
 			if (ret < 0) {
 				return ret;
@@ -376,10 +378,12 @@ int handle_client_request(struct ll_node *node) {
 }
 
 int handle_pwrite(struct ll_node* node, struct remote_request request) {
+	printf("server pwrite - 1 \n");
 	int ret, remote_fd, local_fd = 0;
 	struct remote_response response;
 	struct ll_node *cur;
 	char *data_buf;
+	printf("server pwrite - 2 \n");
 
 	// find the local fd to write to
 	remote_fd = request.fd;
@@ -395,6 +399,7 @@ int handle_pwrite(struct ll_node* node, struct remote_request request) {
 		DEBUG("requested file is not open\n");
 		return -1;
 	}
+	printf("server pwrite - 3 \n");
 
 	// allocate space to receive the incoming data
 	data_buf = malloc(request.count);
@@ -402,15 +407,18 @@ int handle_pwrite(struct ll_node* node, struct remote_request request) {
 		perror("malloc");
 		return -1;
 	}
+	printf("server pwrite - 4 \n");
 
 	// receive data
 	ret = read_from_socket(node->fd, data_buf, request.count);
 	if (ret < 0) {
 		return ret;
 	}
+	printf("server pwrite - 5 \n");
 
 	// TODO: should this just be pwrite?
 	ret = pwrite(local_fd, data_buf, request.count, request.offset);
+	printf("server pwrite - 6 \n");
 
 	// send the response with the number of bytes written to the METADATA SERVER
 	// so it can update metadata/coalesce multiple responses from multiple file servers
@@ -431,15 +439,18 @@ int handle_pwrite(struct ll_node* node, struct remote_request request) {
 	delete_file_fd_node(local_fd);
 	close(local_fd);
 	DEBUG("done handling pwrite\n");
+	printf("server pwrite - 7 \n");
 	return 0;
 }
 
 int handle_pread(struct ll_node* node, struct remote_request request) {
+	printf("server pread - 1 \n");
 	char *data_buf;
 	int ret, local_fd, remote_fd;
 	struct ll_node *cur;
 	struct remote_response response;
 	DEBUG("handle pread\n");
+	printf("server pread - 2 \n");
 
 	// find the local fd to write to
 	remote_fd = request.fd;
@@ -457,12 +468,14 @@ int handle_pread(struct ll_node* node, struct remote_request request) {
 	}
 
 	// read the contents of the file and send them back to the client
+	printf("server pread - 3 \n");
 
 	data_buf = malloc(request.count);
 	if (data_buf == NULL) {
 		perror("malloc");
 		return -1;
 	}
+	printf("server pread - 4 \n");
 	DEBUG("reading %d bytes from fd %d\n", request.count, local_fd);
 	ret = pread(local_fd, data_buf, request.count, request.offset);
 	DEBUG("read %d bytes\n", ret);
@@ -470,12 +483,14 @@ int handle_pread(struct ll_node* node, struct remote_request request) {
 	response.type = PREAD;
 	response.fd = request.fd;
 	response.return_value = ret;
+	printf("server pread - 5 \n");
 
 	DEBUG("sending response to client\n");
 	ret = write(node->fd, &response, sizeof(response));
 	if (ret < 0) {
 		DEBUG("failed writing response to client\n");
 	}
+	printf("server pread - 6 \n");
 
 	DEBUG("sending data to client\n");
 	ret = write(node->fd, data_buf, ret);
@@ -483,11 +498,13 @@ int handle_pread(struct ll_node* node, struct remote_request request) {
 		DEBUG("failed writing data to client\n");
 	}
 	DEBUG("sent response to client\n");
+	printf("server pread - 7 \n");
 
 	// TODO: keep the file open for longer in case we want to read/write to it again soon
 	delete_file_fd_node(local_fd);
 	close(local_fd);
 	DEBUG("done handling pread\n");
+	printf("server pread - 8 \n");
 
 	return 0;
 }
