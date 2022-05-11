@@ -559,11 +559,15 @@ int read_from_client(int client_fd, struct config_options *conf_opts) {
 // on the metadata server, so the file is just created locally 
 // TODO: LOCKING!!
 int manage_create(int client_fd, struct remote_request *request, struct remote_response &response) {
+    acquire_lock(zh, request->file_path);
+    
     int fd = open(request->file_path, request->flags, request->mode);
     printf("created file on metadata server with fd %d\n", fd);
     strcpy(fd_to_name[fd], request->file_path);
     fd_to_client[fd] = client_fd;
 
+    release_lock(zh, request->file_path);
+    
     response.type = CREATE;
     response.fd = fd;
     response.return_value = fd;
@@ -573,11 +577,15 @@ int manage_create(int client_fd, struct remote_request *request, struct remote_r
 
 // TODO: locking
 int manage_open(int client_fd, struct remote_request *request, struct remote_response &response) {
+    acquire_lock(zh, request->file_path);
     int fd = open(request->file_path, request->flags, request->mode);
     printf("opened file on metadata server with fd %d\n", fd);
+    
     strcpy(fd_to_name[fd], request->file_path);
     fd_to_client[fd] = client_fd;
 
+    release_lock(zh, request->file_path);
+    
     response.type = OPEN;
     response.fd = fd;
     response.return_value = fd;
@@ -614,6 +622,8 @@ int manage_pwrite(int client_fd, struct config_options *conf_opts, struct remote
     
     printf("client wants to write %d bytes to offset %d\n", request->count, request->offset);
     
+    acquire_lock(zh, fd_to_name[request->fd]);
+
     bytes_read = pread(request->fd, &fm, sizeof(fm), 0);
     if (bytes_read < sizeof(fm)) {
         perror("pread");
@@ -665,6 +675,8 @@ int manage_pwrite(int client_fd, struct config_options *conf_opts, struct remote
     // into pwrite, use the buffer argument to store that info
     ret = pwrite(request->fd, &input, request->count, request->offset);
     printf("wrote %d bytes\n", ret);
+
+    release_lock(zh, fd_to_name[request->fd]);
 
     response.type = PWRITE;
     response.fd = request->fd;
@@ -847,6 +859,7 @@ int can_acquire_lock(zhandle_t *zh, char *lock_path_, pthread_mutex_t *sync_lock
 
 void acquire_lock(zhandle_t *zh, char *lock_path_)
 {
+    sleep(5);
     printf("%s wants to acquire lock.\n", lock_path_);
     
     pthread_mutex_t sync_lock;
@@ -891,6 +904,7 @@ void acquire_lock(zhandle_t *zh, char *lock_path_)
 
 void release_lock(zhandle_t *zh, char *lock_path_)
 {      
+    sleep(5);
     char *root_lock_path = "/_locknode";
 
     char lock_path[100];
