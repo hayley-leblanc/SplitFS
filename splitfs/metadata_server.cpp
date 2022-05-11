@@ -868,3 +868,4 @@ void release_lock(zhandle_t *zh, char *lock_path_)
     int ret = zoo_delete(zh, lock_path, -1);
     return;
 }
+
