@@ -3799,7 +3799,7 @@ RETT_PWRITE _nvp_do_pwrite(INTF_PWRITE,
 		fm->location.ip_addr = input.dst;
 		strcpy(fm->location.filepath, input.filepath);
 	}
-	fm->erasure_coding.flag=0;
+	fm->erasure_coding.flag=1;
 	
 	printf("nvp pwrite - flag %d \n", fm->erasure_coding.flag);
 	printf("nvp pwrite - location %s \n\n\n\n", fm->location.filepath);
@@ -3810,6 +3810,35 @@ RETT_PWRITE _nvp_do_pwrite(INTF_PWRITE,
         strcat(Afile, "-A.txt");
 	printf("nvp pwrite - trying to print A File %s \n", Afile);
 	
+	snprintf(fm->erasure_coding.fileA,sizeof(fm->erasure_coding.fileA),"%s",Afile);
+    	printf("Printing A from struct %s\n",fm->erasure_coding.fileA);
+
+    	char Bfile[256];
+	snprintf(Bfile, sizeof(Bfile), "%s", fm->location.filepath);
+    	Bfile[(strlen(Bfile))-4] = '\0'; 	
+    	strcat(Bfile, "-B.txt");
+	printf("nvp pwrite - trying to print B File %s \n", Bfile);
+	
+	snprintf(fm->erasure_coding.fileB,sizeof(fm->erasure_coding.fileB),"%s",Bfile);
+    	printf("Printing B from struct %s\n",fm->erasure_coding.fileB);
+
+    	char Pfile[256];
+	snprintf(Pfile, sizeof(Pfile), "%s", fm->location.filepath);
+    	Pfile[(strlen(Pfile))-4] = '\0'; 	
+    	strcat(Pfile, "-P.txt");
+	printf("nvp pwrite - trying to print P File %s \n", Pfile);
+	
+	snprintf(fm->erasure_coding.fileP,sizeof(fm->erasure_coding.fileP),"%s",Pfile);
+    	printf("Printing P from struct %s\n",fm->erasure_coding.fileP);
+
+    	char Qfile[256];
+	snprintf(Qfile, sizeof(Qfile), "%s",fm->location.filepath);
+    	Qfile[(strlen(Qfile))-4] = '\0'; 	
+    	strcat(Qfile, "-Q.txt");
+	printf("nvp pwrite - trying to print Q File %s \n", Qfile);
+	
+	snprintf(fm->erasure_coding.fileQ,sizeof(fm->erasure_coding.fileQ),"%s",Qfile);
+    	printf("Printing Q from struct %s\n",fm->erasure_coding.fileQ);
 	
 
 	// update persistent metadata accordingly
