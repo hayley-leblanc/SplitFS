@@ -907,10 +907,20 @@ void nvp_cleanup(void)
 {
 	int i, j;
 
+#if CLIENT 
+	// send a message telling the metadata server that we are done
+	DEBUG("CLIENT QUITTING\n");
+	struct remote_request quit_request;
+	quit_request.type = QUIT;
+	int ret = _hub_find_fileop("posix")->WRITE(metadata_server_fd, &quit_request, sizeof(struct remote_request));
+	if (ret < sizeof(struct remote_request)) {
+		DEBUG("Failed sending quit message\n");
+	}
+#endif 
+
+
 #if CLIENT || FILE_SERVER
 	pthread_join(server_thread, NULL);
-	DEBUG("closing remote connection file descriptor %d\n", cxn_fd);
-	_hub_find_fileop("posix")->CLOSE(cxn_fd);
 	_hub_find_fileop("posix")->CLOSE(metadata_server_fd);
 	zookeeper_close(zh);
 	DEBUG("closed connection to zookeeper\n");
