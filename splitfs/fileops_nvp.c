@@ -3799,7 +3799,10 @@ RETT_PWRITE _nvp_do_pwrite(INTF_PWRITE,
 		fm->location.ip_addr = input.dst;
 		strcpy(fm->location.filepath, input.filepath);
 	}
-	printf("nvp pwrite - 9 \n");
+	fm->erasure_coding.flag=0;
+	
+	printf("nvp pwrite - flag %d \n", fm->erasure_coding.flag);
+	printf("nvp pwrite - location %d \n", fm->location.filepath);
 
 	// update persistent metadata accordingly
 	if (fm->length < (offset + bytes_written)) {
