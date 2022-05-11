@@ -780,7 +780,15 @@ int can_acquire_lock(zhandle_t *zh, char *lock_path_, pthread_mutex_t *sync_lock
     strcat(lock_path, lock_path_);
 
 
-    int chil = zoo_get_children(zh, root_lock_path, 0, &strs);
+    char last_parent[500];
+
+    for(int i=strlen(lock_path)-1; i>=0; i--)
+        if(lock_path[i]=='/')
+            break;
+
+    strncpy(last_parent, lock_path, i);
+
+    int chil = zoo_get_children(zh, last_parent, 0, &strs);
 
     printf("Trying to see if lock for %s can be acquired.\n", lock_path);
 
