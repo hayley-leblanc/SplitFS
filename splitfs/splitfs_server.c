@@ -228,6 +228,7 @@ void* server_listen(void* args) {
     fd_set fdset_copy;
     struct remote_request request;
 	struct ll_node* cur;
+	bool done = false;
 
     while(1) {
         tv.tv_sec = 0;
@@ -255,34 +256,67 @@ void* server_listen(void* args) {
         if (ret < 0) {
             perror("select");
         } else {
-            // determine which fd is ready
-            // pthread_mutex_lock(&fdset_lock);
-			cur = peer_fd_list_head;
-			while (cur != NULL) {
-				if (FD_ISSET(cur->fd, &fdset_copy)) {
-					// fd can either be for a connection with a client or with 
-					// the metadata server
-					// these functions handle requests and also disconnection
-					switch (cur->type) {
-						case METADATA_FD:
-							DEBUG("metadata fd\n");
-							ret = handle_metadata_notif(cur);
-							if (ret < 0) {
-								DEBUG("failed reading metadata server notification");
-							}
-							break;
-						case CLIENT_FD:
-							DEBUG("client fd\n");
-							ret = handle_client_request(cur);
-							if (ret < 0) {
-								DEBUG("failed handling client request\n");
-							}
-							break;
+            // // determine which fd is ready
+            // // pthread_mutex_lock(&fdset_lock);
+			// cur = peer_fd_list_head;
+			// while (cur != NULL) {
+			// 	if (FD_ISSET(cur->fd, &fdset_copy) && cur->fd == metadata_server_fd) {
+			// 		printf("METADATA SERVER SET\n");
+			// 		// fd can either be for a connection with a client or with 
+			// 		// the metadata server
+			// 		// these functions handle requests and also disconnection
+			// 		switch (cur->type) {
+			// 			case METADATA_FD:
+			// 				DEBUG("metadata fd\n");
+			// 				ret = handle_metadata_notif(cur);
+			// 				if (ret < 0) {
+			// 					DEBUG("failed reading metadata server notification");
+			// 				}
+			// 				done = true;
+			// 				break;
+			// 			case CLIENT_FD:
+			// 				DEBUG("client fd\n");
+			// 				ret = handle_client_request(cur);
+			// 				if (ret < 0) {
+			// 					DEBUG("failed handling client request\n");
+			// 				}
+			// 				break;
+			// 		}
+			// 		break;
+			// 	}
+			// 	cur = cur->next;
+			// }
+
+			// if (!done) {
+				// printf("checking client fds\n");
+				cur = peer_fd_list_head;
+				while (cur != NULL) {
+					if (FD_ISSET(cur->fd, &fdset_copy)) {
+						// fd can either be for a connection with a client or with 
+						// the metadata server
+						// these functions handle requests and also disconnection
+						switch (cur->type) {
+							case METADATA_FD:
+								DEBUG("metadata fd\n");
+								ret = handle_metadata_notif(cur);
+								if (ret < 0) {
+									DEBUG("failed reading metadata server notification");
+								}
+								break;
+							case CLIENT_FD:
+								DEBUG("client fd %d\n", cur->fd);
+								ret = handle_client_request(cur);
+								if (ret < 0) {
+									DEBUG("failed handling client request\n");
+								}
+								break;
+						}
+						break;
 					}
-					break;
-				}
-				cur = cur->next;
+					cur = cur->next;
+				// }
 			}
+
 			// pthread_mutex_unlock(&fdset_lock);
         }
     }
@@ -292,6 +326,7 @@ void* server_listen(void* args) {
 int handle_metadata_notif(struct ll_node *node) {
 	int ret, bytes_read, local_file_fd;
 	struct remote_request notif;
+	struct remote_response response;
 	
 	bytes_read = read_from_socket(node->fd, &notif, sizeof(struct remote_request));
 	if (bytes_read < sizeof(struct remote_request)) {
@@ -301,7 +336,7 @@ int handle_metadata_notif(struct ll_node *node) {
 		case METADATA_WRITE_NOTIF:
 			DEBUG("metadata write notif\n");
 			// 1. open or create the file
-			local_file_fd = _nvp_OPEN(notif.file_path, O_CREAT | O_RDWR, 777);
+			local_file_fd = open(notif.file_path, O_CREAT | O_WRONLY, 777);
 			if (local_file_fd < 0) {
 				perror("open");
 				return local_file_fd;
@@ -309,10 +344,21 @@ int handle_metadata_notif(struct ll_node *node) {
 			// 2. save the file descriptor
 			new_file_fd_node(local_file_fd, notif.fd);
 			DEBUG("added local fd %d to record for remote fd %d\n", local_file_fd, notif.fd);
+
+			response.fd = local_file_fd;
+			response.return_value = local_file_fd;
+			response.type = METADATA_WRITE_NOTIF;
+			DEBUG("sending write ack\n");
+			ret = write(node->fd, &response, sizeof(struct remote_response));
+			if (write < 0) {
+				perror("write");
+				return ret;
+			}
+			DEBUG("sent write ack\n");
 			break;
 		case METADATA_READ_NOTIF:
 			DEBUG("metadata read notif\n");
-			local_file_fd = _nvp_OPEN(notif.file_path, O_RDONLY);
+			local_file_fd = open(notif.file_path, O_RDONLY);
 			if (local_file_fd < 0) {
 				perror("open");
 				return local_file_fd;
@@ -320,6 +366,16 @@ int handle_metadata_notif(struct ll_node *node) {
 			// 2. save the file descriptor
 			new_file_fd_node(local_file_fd, notif.fd);
 			DEBUG("added local fd %d to record for remote fd %d\n", local_file_fd, notif.fd);
+			response.fd = local_file_fd;
+			response.return_value = local_file_fd;
+			response.type = METADATA_READ_NOTIF;
+			DEBUG("sending read ack\n");
+			ret = write(node->fd, &response, sizeof(struct remote_response));
+			if (write < 0) {
+				perror("write");
+				return ret;
+			}
+			DEBUG("sent read ack\n");
 			break;
 		default:
 			DEBUG("unrecognized type %d\n", notif.type);
@@ -393,6 +449,16 @@ int handle_pwrite(struct ll_node* node, struct remote_request request) {
 	}
 	if (cur == NULL || local_fd == 0) {
 		DEBUG("requested file is not open\n");
+		response.type = PWRITE;
+		response.fd = request.fd;
+		response.return_value = -1;
+
+		DEBUG("sending response to metadata server\n");
+		ret = write(metadata_server_fd, &response, sizeof(struct remote_response));
+		if (ret < 0) {
+			DEBUG("failed writing response to metadata server\n");
+		}
+		DEBUG("sent response to metadata server\n");
 		return -1;
 	}
 
