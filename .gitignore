@@ -1,3 +1,5 @@
+config
+splitfs/common.mk
 leveldb/workloads/
 leveldb/build/
 results/
