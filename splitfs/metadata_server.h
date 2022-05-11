@@ -10,10 +10,20 @@ struct fserver_id {
     char filepath[MAX_FILENAME_LEN];
 };
 
+struct Erasure {
+    int flag;
+    char fileA[256];
+    char fileB[256];
+    char fileP[256];
+    char fileQ[256];
+    
+};
+
 // NOTE: this structure is recorded persistently
 struct file_metadata {
     size_t length;
     struct fserver_id location;
+    struct Erasure erasure_coding;
 };
 
 struct pwrite_in {
