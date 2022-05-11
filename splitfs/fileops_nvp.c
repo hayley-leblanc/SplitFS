@@ -3802,7 +3802,15 @@ RETT_PWRITE _nvp_do_pwrite(INTF_PWRITE,
 	fm->erasure_coding.flag=0;
 	
 	printf("nvp pwrite - flag %d \n", fm->erasure_coding.flag);
-	printf("nvp pwrite - location %s \n", fm->location.filepath);
+	printf("nvp pwrite - location %s \n\n\n\n", fm->location.filepath);
+
+	char Afile[256];
+	snprintf(Afile, sizeof(Afile), "%s", fm->location.filepath);
+        Afile[(strlen(Afile))-4] = '\0'; 	
+        strcat(Afile, "-A.txt");
+	printf("nvp pwrite - trying to print A File %s \n", Afile);
+	
+	
 
 	// update persistent metadata accordingly
 	if (fm->length < (offset + bytes_written)) {
