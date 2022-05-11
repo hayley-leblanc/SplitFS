@@ -496,9 +496,27 @@ int read_from_client(int client_fd, struct config_options *conf_opts) {
                 return ret;
             }
             break;
+        case QUIT:
+            printf("client wants to clean up\n");
+            printf("client has disconnected\n");
+            pthread_mutex_lock(&client_fdset_lock);
+            FD_CLR(client_fd, &client_fds);
+            // TODO: find a faster method; this is inefficient.
+            // we can't just pass in the index we found the client fd at 
+            // when we called read_from_client(); the fd's spot in the list
+            // may have changed between then and now (?)
+            for (int i = 0; i < client_fd_vec.size(); i++) {
+                if (client_fd_vec[i] == client_fd) {
+                    client_fd_vec.erase(client_fd_vec.begin()+i);
+                }
+            }
+            printf("closing client fd %d\n", client_fd);
+            close(client_fd);
+            pthread_mutex_unlock(&client_fdset_lock);
+            break;
     }
 
-    if (request->type != PREAD) {
+    if (request->type != PREAD && request->type != QUIT) {
         // TODO: if we fail to send a response, then we should clean up any open 
         // fds that the client might have had
         // zookeeper will take care of releasing its locks, we just have to clean up
@@ -567,18 +585,35 @@ int manage_pwrite(int client_fd, struct config_options *conf_opts, struct remote
     struct sockaddr_in* sa;
     struct pwrite_in input;
     struct remote_request fileserver_notif;
-    int fileserver_fd, ret;
+    struct remote_response fileserver_response;
+    int fileserver_fd = -1, ret, bytes_read;
+    struct file_metadata fm;
     
     printf("client wants to write %d bytes to offset %d\n", request->count, request->offset);
     
-    // TODO: what if the file already lives somewhere? do a lookup
-    sa = choose_fileserver(&fileserver_fd);
+    bytes_read = pread(request->fd, &fm, sizeof(fm), 0);
+    if (bytes_read < sizeof(fm)) {
+        perror("pread");
+        return bytes_read;
+    }
+    printf("read %d bytes from %d\n", bytes_read, request->fd);
+    for (map<int, struct sockaddr_in>::iterator it = fd_to_server_ip.begin(); it != fd_to_server_ip.end(); it++) {
+        if (it->second.sin_addr.s_addr == fm.location.ip_addr.sin_addr.s_addr) {
+            fileserver_fd = it->first;
+            sa = &it->second;
+        }
+    }
+    if (fileserver_fd < 0) {
+        sa = choose_fileserver(&fileserver_fd);
+    }
+
     input.client_fd = client_fd;
     input.dst = *sa;
     input.fileserver_fd = fileserver_fd;
     memcpy(input.port, conf_opts->splitfs_server_port, 8);
     strcpy(input.filepath, fd_to_name[request->fd]);
 
+    printf("constructing fileserver write notif\n");
     // tell fileservers to expect the file
     fileserver_notif.type = METADATA_WRITE_NOTIF;
     fileserver_notif.fd = request->fd;
@@ -592,6 +627,16 @@ int manage_pwrite(int client_fd, struct config_options *conf_opts, struct remote
         return ret;
     }
     printf("sent message to fileserver at fd %d\n", fileserver_fd);
+    
+    // wait for ack from the server so we know that they got it before 
+    // sending to the client
+    printf("waiting for write ack\n");
+    ret = read_from_socket(fileserver_fd, &fileserver_response, sizeof(fileserver_response));
+    if (ret < sizeof(fileserver_response)) {
+        printf("failed read\n");
+        return ret;
+    }
+    printf("got write ack\n");
 
     // since we don't yet have the buffer and have some extra info we need to pass 
     // into pwrite, use the buffer argument to store that info
@@ -609,6 +654,7 @@ int manage_pread(int client_fd, struct config_options *conf_opts, struct remote_
     struct file_metadata fm;
     struct metadata_response mr;
     struct remote_request fileserver_notif;
+    struct remote_response fileserver_response;
     char addr_buf[INET_ADDRSTRLEN];
     printf("client wants to read %d bytes at offset %d\n", request->count, request->offset);
 
@@ -632,6 +678,7 @@ int manage_pread(int client_fd, struct config_options *conf_opts, struct remote_
     for (map<int, struct sockaddr_in>::iterator it = fd_to_server_ip.begin(); it != fd_to_server_ip.end(); it++) {
         if (it->second.sin_addr.s_addr == fm.location.ip_addr.sin_addr.s_addr) {
             fileserver_fd = it->first;
+            printf("found at file server %d\n", fileserver_fd);
         }
     }
     if (fileserver_fd < 0) {
@@ -647,6 +694,15 @@ int manage_pread(int client_fd, struct config_options *conf_opts, struct remote_
     }
     printf("sent notification to fileserver\n");
 
+    // wait for ack from the server so we know that they got it before 
+    // sending to the client
+    printf("waiting for read ack\n");
+    ret = read_from_socket(fileserver_fd, &fileserver_response, sizeof(fileserver_response));
+    if (ret < sizeof(fileserver_response)) {
+        printf("failed read\n");
+        return ret;
+    }
+    printf("got read ack\n");
 
     // build a response to tell the client where the file lives
     // we actually use the request object for this because it's set up better 

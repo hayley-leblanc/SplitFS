@@ -3751,6 +3751,7 @@ RETT_PWRITE _nvp_do_pwrite(INTF_PWRITE,
 	client_fd = input.client_fd;
 	sa = input.dst;
 
+	printf("reading persistent metadata\n");
 	ret = read_persistent_metadata(nvf);
 	if (ret < 0) {
 		DEBUG("failed reading persistent metadata from file descriptor %d\n", nvf->fd);
@@ -3765,13 +3766,13 @@ RETT_PWRITE _nvp_do_pwrite(INTF_PWRITE,
 	mr.sa = sa;
 	// mr.port = input.port;
 	memcpy(mr.port, input.port, 8);
-
+	printf("sending message to client\n");
 	ret = write(client_fd, &mr, sizeof(struct metadata_response));
 	if (ret < 0) {
 		perror("write");
 		return ret;
 	}
-
+	printf("listening from fileservers\n");
 	// listen for response from fileservers
 	// TODO: listen to ALL servers involved in the operation
 	bytes_read = read_from_socket(input.fileserver_fd, &response, sizeof(struct remote_response));
@@ -4301,20 +4302,15 @@ RETT_CLOSE _nvp_REAL_CLOSE(INTF_CLOSE, ino_t serialno, int async_file_closing) {
 
 	DEBUG("_nvp_REAL_CLOSE(%i): Ref count = %d\n", file, nvf->node->reference);
 	DEBUG_FILE("%s: Calling fsync flush on fsync\n", __func__);
-	DEBUG("hello???\n");
 	cpuid = GET_CPUID();
-	DEBUG("yee\n");
 #if !SYSCALL_APPENDS
 	fsync_flush_on_fsync(nvf, cpuid, 1, 0);	
 #endif
-	DEBUG("okay\n");
 	/* 
 	 * nvf->node->reference contains how many threads have this file open. 
 	 */
 	node_list_idx = nvf->node->free_list_idx;
-	DEBUG("acquiring lock\n");
 	pthread_spin_lock(&node_lookup_lock[node_list_idx]);
-	DEBUG("got lock\n");
 
 	if(nvf->valid == 0) {
 		pthread_spin_unlock(&node_lookup_lock[node_list_idx]);
@@ -4808,12 +4804,18 @@ RETT_OPEN _nvp_OPEN(INTF_OPEN)
 	// add_fd_path_node(fd, path);
 
 #if METADATA_SERVER 
-	// initialize persistent metadata for the file at the metadata server
-	nvf->node->persistent_metadata.length = 0;
-	memset(&(nvf->node->persistent_metadata.location.ip_addr), 0, sizeof(struct sockaddr_in));
-	strcpy(nvf->node->persistent_metadata.location.filepath, path);
-	// TODO: handle errors from the pwrite
-	_nvp_fileops->PWRITE(nvf->fd, &nvf->node->persistent_metadata, sizeof(struct file_metadata), 0);
+	if (FLAGS_INCLUDE(oflag,O_CREAT)) {
+		// initialize persistent metadata for the file at the metadata server
+		nvf->node->persistent_metadata.length = 0;
+		memset(&(nvf->node->persistent_metadata.location.ip_addr), 0, sizeof(struct sockaddr_in));
+		strcpy(nvf->node->persistent_metadata.location.filepath, path);
+		// TODO: handle errors from the pwrite
+		int ret = _nvp_fileops->PWRITE(nvf->fd, &nvf->node->persistent_metadata, sizeof(struct file_metadata), 0);
+		nvf->node->length = 0 + ret;
+		nvf->node->true_length = nvf->node->length;
+		if (nvf->node->true_length >= LARGE_FILE_THRESHOLD)
+			nvf->node->is_large_file = 1;
+		}
 #endif 
 
 	errno = 0;
