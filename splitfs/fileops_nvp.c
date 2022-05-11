@@ -3740,16 +3740,19 @@ RETT_PWRITE _nvp_do_pwrite(INTF_PWRITE,
 {
 	DEBUG("_nvp_do_pwrite\n");
 #if METADATA_SERVER
+	printf("nvp pwrite - 1 \n");
 	int ret, client_fd, bytes_read, bytes_written;
 	struct file_metadata *fm;
 	struct sockaddr_in sa;
 	struct metadata_response mr;
 	struct pwrite_in input;
 	struct remote_response response;
+	printf("nvp pwrite - 2 \n");
 
 	input = *(struct pwrite_in*)buf;
 	client_fd = input.client_fd;
 	sa = input.dst;
+	printf("nvp pwrite - 3 \n");
 
 	ret = read_persistent_metadata(nvf);
 	if (ret < 0) {
@@ -3757,6 +3760,7 @@ RETT_PWRITE _nvp_do_pwrite(INTF_PWRITE,
 		return ret;
 	}
 	fm = &nvf->node->persistent_metadata;
+	printf("nvp pwrite - 4 \n");
 
 	// send the client the sockaddr so it can connect to the server
 	// TODO: if there are multiple servers to connect to, send info for all of them
@@ -3765,12 +3769,14 @@ RETT_PWRITE _nvp_do_pwrite(INTF_PWRITE,
 	mr.sa = sa;
 	// mr.port = input.port;
 	memcpy(mr.port, input.port, 8);
+	printf("nvp pwrite - 5 \n");
 
 	ret = write(client_fd, &mr, sizeof(struct metadata_response));
 	if (ret < 0) {
 		perror("write");
 		return ret;
 	}
+	printf("nvp pwrite - 6 \n");
 
 	// listen for response from fileservers
 	// TODO: listen to ALL servers involved in the operation
@@ -3778,12 +3784,14 @@ RETT_PWRITE _nvp_do_pwrite(INTF_PWRITE,
 	if (bytes_read < 0) {
 		return bytes_read;
 	}
+	printf("nvp pwrite - 7 \n");
 
 	bytes_written = response.return_value;
 	if (bytes_written < 0) {
 		// TODO: set errno?
 		return bytes_written;
 	}
+	printf("nvp pwrite - 8 \n");
 
 	// if the length was 0 before this write, we have to record the file's location
 	// TODO: we also have to record new locations potentially, in the future?
@@ -3791,6 +3799,7 @@ RETT_PWRITE _nvp_do_pwrite(INTF_PWRITE,
 		fm->location.ip_addr = input.dst;
 		strcpy(fm->location.filepath, input.filepath);
 	}
+	printf("nvp pwrite - 9 \n");
 
 	// update persistent metadata accordingly
 	if (fm->length < (offset + bytes_written)) {
@@ -3811,6 +3820,7 @@ RETT_PWRITE _nvp_do_pwrite(INTF_PWRITE,
 	TBL_ENTRY_UNLOCK_RD(tbl_app, cpuid);
 	NVP_UNLOCK_NODE_RD(nvf, cpuid);
 	NVP_UNLOCK_FD_RD(nvf, cpuid);
+	printf("nvp pwrite - 10 \n");
 
 	return bytes_written; 
 	
@@ -4808,12 +4818,15 @@ RETT_OPEN _nvp_OPEN(INTF_OPEN)
 	// add_fd_path_node(fd, path);
 
 #if METADATA_SERVER 
+	printf("nvp create - 1 \n");
 	// initialize persistent metadata for the file at the metadata server
 	nvf->node->persistent_metadata.length = 0;
 	memset(&(nvf->node->persistent_metadata.location.ip_addr), 0, sizeof(struct sockaddr_in));
 	strcpy(nvf->node->persistent_metadata.location.filepath, path);
 	// TODO: handle errors from the pwrite
+	printf("nvp create - 2 \n");
 	_nvp_fileops->PWRITE(nvf->fd, &nvf->node->persistent_metadata, sizeof(struct file_metadata), 0);
+	printf("nvp create - 3 \n");
 #endif 
 
 	errno = 0;
