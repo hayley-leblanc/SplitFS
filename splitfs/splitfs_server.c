@@ -311,7 +311,8 @@ int handle_metadata_notif(struct ll_node *node) {
 			printf("\nfile server metadata write local_file_fd %d\n",local_file_fd);
 			
 			strcpy(fd_to_name[local_file_fd],notif.file_path);
-			printf("fd_to_name SAAMAJA %s\n\n\n\n", fd_to_name[local_file_fd]);
+			printf("fd_to_name local fd SAAMAJA %d\n\n\n\n", local_file_fd);
+			printf("fd_to_name local file_path SAAMAJA %s\n\n\n\n", fd_to_name[local_file_fd]);
 				
 			
 			if (local_file_fd < 0) {
@@ -536,8 +537,8 @@ int handle_pwrite(struct ll_node* node, struct remote_request request) {
 	printf("saamaja fd error\n");
 	}
     	printf("saamaja file_fd=%d\n\n\n\n\n",A_local_file_fd);*/
-	printf("fd_to_name in other function fd SAAMAJA %s\n\n\n\n", local_fd);
-	printf("fd_to_name fd in other function filepath SAAMAJA %s\n\n\n\n", fd_to_name[local_fd]);
+	printf("fd_to_name in other function fd SAAMAJA %d\n\n\n\n", local_fd);
+	printf("fd_to_name in other function filepath SAAMAJA %s\n\n\n\n", fd_to_name[local_fd]);
 
 
 	// TODO: should this just be pwrite?
