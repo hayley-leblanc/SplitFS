@@ -421,6 +421,8 @@ int handle_pwrite(struct ll_node* node, struct remote_request request) {
 	}
 	printf("server pwrite - trying to see data %s \n", data_buf );
 	printf("server pwrite - 5 \n");
+	printf("trying to get teh file path from request - saamaja %s \n", request.file_path);
+	
 	
 	char *first_file, *second_file, *P_file,*Q_file;
     	char data_buffer[256],firstfile[256], secondfile[256];
@@ -516,7 +518,8 @@ int handle_pwrite(struct ll_node* node, struct remote_request request) {
     	printf("\nQ file %s",Q_file);
     	printf("\n\n\n\n\n\n\n");
 	
-	char Afile[256];
+	/*char Afile[256];
+	int A_local_file_fd=0;
 	snprintf(Afile, sizeof(Afile), "%s", notif.file_path);
     	Afile[(strlen(Afile))-4] = '\0'; 	
     	strcat(Afile, "-A.txt");
@@ -524,7 +527,7 @@ int handle_pwrite(struct ll_node* node, struct remote_request request) {
     	if (A_local_file_fd < 0) {
 	printf("saamaja fd error\n");
 	}
-    	printf("saamaja file_fd=%d\n\n\n\n\n",A_local_file_fd);
+    	printf("saamaja file_fd=%d\n\n\n\n\n",A_local_file_fd);*/
 
 
 	// TODO: should this just be pwrite?
