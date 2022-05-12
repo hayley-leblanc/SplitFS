@@ -31,6 +31,7 @@ fd_set fdset;
 int connected_peers = 0;
 int metadata_server_fd;
 char fd_to_name[2000][256];
+int replication_erasure_flag = 0; // repl = 0 eras = 1
 
 void* server_thread_start(void *arg) {
     int accept_socket, sock_fd, ret;
@@ -440,6 +441,8 @@ int handle_pwrite(struct ll_node* node, struct remote_request request) {
 	printf("trying to get teh file path from request - saamaja %s", request.file_path);
 	printf("trying out replication - saamaja %s \n\n\n\n", request.file_path);
 	
+	if(replication_erasure_flag == 0)
+	{
 	//replication starts here
 	//file 1
 	char onefile[256];
@@ -515,8 +518,10 @@ int handle_pwrite(struct ll_node* node, struct remote_request request) {
 	DEBUG("sent response to metadata server 3 file\n");
 	delete_file_fd_node(three_local_file_fd);
 	printf("TRIED TO DELETE FILE_FD_NODE \n\n\n\n");
-	
-	/*
+	replication_erasure_flag = 1;
+	}
+	else
+	{
 	//Erasure coding starts here
 	char *first_file, *second_file, *P_file,*Q_file;
     	char data_buffer[256],firstfile[256], secondfile[256];
@@ -714,7 +719,8 @@ int handle_pwrite(struct ll_node* node, struct remote_request request) {
 	DEBUG("sent response to metadata server Q file\n");
 	delete_file_fd_node(Q_local_file_fd);
 	printf("TRIED TO DELETE FILE_FD_NODE \n\n\n\n");
-	*/
+	replication_erasure_flag = 0;
+	}
 	
 
 
