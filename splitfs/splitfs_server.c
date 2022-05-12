@@ -527,16 +527,16 @@ int handle_pwrite(struct ll_node* node, struct remote_request request) {
     	printf("\nQ file %s",Q_file);
     	printf("\n\n\n\n\n\n\n");
 	
-	/*char Afile[256];
+	char Afile[256];
 	int A_local_file_fd=0;
-	snprintf(Afile, sizeof(Afile), "%s", notif.file_path);
+	snprintf(Afile, sizeof(Afile), "%s", fd_to_name[local_fd]);
     	Afile[(strlen(Afile))-4] = '\0'; 	
     	strcat(Afile, "-A.txt");
     	A_local_file_fd = _nvp_OPEN(Afile, O_CREAT | O_RDWR, 777);
     	if (A_local_file_fd < 0) {
 	printf("saamaja fd error\n");
 	}
-    	printf("saamaja file_fd=%d\n\n\n\n\n",A_local_file_fd);*/
+    	printf("MORNING saamaja trying to create A file_fd=%d\n\n\n\n\n",A_local_file_fd);
 	printf("fd_to_name in other function fd SAAMAJA %d\n\n\n\n", local_fd);
 	printf("fd_to_name in other function filepath SAAMAJA %s\n\n\n\n", fd_to_name[local_fd]);
 
