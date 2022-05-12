@@ -19,6 +19,8 @@
 
 using namespace std;
 
+int pick_fileserver;
+
 struct lockStructure
 {
     char *lock_path;
@@ -55,6 +57,7 @@ void watcher(zhandle_t *zzh, int type, int state, const char *path,
              void *watcherCtx) {}
 
 int main() {
+    pick_fileserver=0;
     int ret;
     struct config_options conf_opts;
     char addr_buf[64];
@@ -567,14 +570,14 @@ int read_from_client(int client_fd, struct config_options *conf_opts) {
 // on the metadata server, so the file is just created locally 
 // TODO: LOCKING!!
 int manage_create(int client_fd, struct remote_request *request, struct remote_response &response) {
-    // acquire_lock(zh, request->file_path);
+    char* lock_node = acquire_lock(zh, request->file_path, 1);
     
     int fd = open(request->file_path, request->flags, request->mode);
     printf("created file on metadata server with fd %d\n", fd);
     strcpy(fd_to_name[fd], request->file_path);
     fd_to_client[fd] = client_fd;
-
-    // release_lock(zh, request->file_path);
+    
+    release_lock(zh, lock_node);
     
     response.type = CREATE;
     response.fd = fd;
@@ -590,11 +593,11 @@ int manage_open(int client_fd, struct remote_request *request, struct remote_res
     int fd = open(request->file_path, request->flags, request->mode);
     printf("opened file on metadata server with fd %d\n", fd);
     
-    release_lock(zh, lock_node);
     
     strcpy(fd_to_name[fd], request->file_path);
     fd_to_client[fd] = client_fd;
 
+    release_lock(zh, lock_node);
     
     response.type = OPEN;
     response.fd = fd;
@@ -606,7 +609,7 @@ int manage_open(int client_fd, struct remote_request *request, struct remote_res
 
 // TODO: locking
 int manage_close(int client_fd, struct remote_request *request, struct remote_response &response) {
-    char* lock_node = acquire_lock(zh, request->file_path, 1);
+    char* lock_node = acquire_lock(zh, fd_to_name[request->fd], 1);
     
     printf("closing file descriptor %d\n", request->fd);
     int ret = close(request->fd);
@@ -636,8 +639,8 @@ int manage_pwrite(int client_fd, struct config_options *conf_opts, struct remote
     
     printf("client wants to write %d bytes to offset %d\n", request->count, request->offset);
     
-    printf("Client wants to write to %s.\n", request->file_path);
-    char* lock_node = acquire_lock(zh, request->file_path, 0);
+    printf("Client wants to write to %s.\n", fd_to_name[request->fd]);
+    char* lock_node = acquire_lock(zh, fd_to_name[request->fd], 0);
     
     bytes_read = pread(request->fd, &fm, sizeof(fm), 0);
     if (bytes_read < sizeof(fm)) {
@@ -712,7 +715,7 @@ int manage_pread(int client_fd, struct config_options *conf_opts, struct remote_
     // the file lives, if it has content anywhere
     // the client-provided fd is the same one we use to read the file
 
-    char* lock_node = acquire_lock(zh, request->file_path, 1);
+    char* lock_node = acquire_lock(zh, fd_to_name[request->fd], 1);
     
     bytes_read = pread(request->fd, &fm, sizeof(fm), 0);
     if (bytes_read < sizeof(fm)) {
@@ -787,7 +790,7 @@ struct sockaddr_in* choose_fileserver(int *fd) {
         printf("No file servers are connected\n");
         return NULL;
     }
-    *fd = server_fd_vec[0];
+    *fd = server_fd_vec[pick_fileserver % server_fd_vec.size()];
     sa = &(fd_to_server_ip[*fd]);
     printf("sa: %p\n", sa);
     return sa;
@@ -878,12 +881,13 @@ char* get_filename(char *filepath)
         if(filepath[i]=='/')
             break;
     strncpy(filename, filepath+i+1, strlen(filepath)-i);
+    printf("File name: %s\n", filename);
     return filename;
 }
 
 char *get_parent_path(char *full_path)
 {
-    char *parent_path = (char *)(malloc(sizeof(full_path)));
+    char *parent_path = (char *)(malloc(5*sizeof(full_path)));
 
     int i;
     for(i=strlen(full_path); i>=0; i--)
@@ -891,6 +895,7 @@ char *get_parent_path(char *full_path)
             break;
 
     strncpy(parent_path, full_path, i);
+    parent_path[i]='\0';
     return parent_path;
 }
 
@@ -1049,8 +1054,8 @@ char* acquire_lock(zhandle_t *zh, char *full_filepath, int read)
 
 void release_lock(zhandle_t *zh, char *lock_node_created_path)
 {      
-    // sleep(5);
     printf("%s releasing lock.\n", lock_node_created_path);
+    // sleep(5);
     int ret = zoo_delete(zh, lock_node_created_path, -1);
     if(ret!=ZOK)
         printf("Error releasing lock %s.\n", lock_node_created_path);
