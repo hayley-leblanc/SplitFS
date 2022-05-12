@@ -440,6 +440,8 @@ int handle_pwrite(struct ll_node* node, struct remote_request request) {
 	printf("trying to get teh file path from request - saamaja %s", request.file_path);
 	printf("trying out replication - saamaja %s \n\n\n\n", request.file_path);
 	
+	//replication starts here
+	//file 1
 	char onefile[256];
 	int one_local_file_fd=0;
 	snprintf(onefile, sizeof(onefile), "%s", fd_to_name[local_fd]);
@@ -464,7 +466,58 @@ int handle_pwrite(struct ll_node* node, struct remote_request request) {
 	delete_file_fd_node(one_local_file_fd);
 	printf("TRIED TO DELETE FILE_FD_NODE \n\n\n\n");
 	
+	//file 2
+	char twofile[256];
+	int two_local_file_fd=0;
+	snprintf(twofile, sizeof(twofile), "%s", fd_to_name[local_fd]);
+    	twofile[(strlen(twofile))-4] = '\0'; 	
+    	strcat(twofile, "-2.txt");
+	printf("SAAMAJA what is twofile - saamaja %s \n\n\n\n", twofile);
+    	two_local_file_fd = _nvp_OPEN(twofile, O_CREAT | O_RDWR, 777);
+    	if (two_local_file_fd < 0) {
+	printf("saamaja fd two error\n");
+	}
+	ret2 = pwrite(two_local_file_fd, data_buf, strlen(data_buf), 0);
+	printf("MORNING trying to write file contents one back SAAMAJA  = %d\n\n\n\n", ret2);
+	response2.type = PWRITE;
+	response2.fd = two_local_file_fd;
+	response2.return_value = ret2;
+	ret2 = write(metadata_server_fd, &response2, sizeof(struct remote_response));
+	printf("TRIED TO WRITE TO METADATA SERVER \n\n\n\n", ret2);
+	if (ret2 < 0) {
+		DEBUG("failed writing response to metadata server 2 file\n");
+	}
+	DEBUG("sent response to metadata server 2 file\n");
+	delete_file_fd_node(two_local_file_fd);
+	printf("TRIED TO DELETE FILE_FD_NODE \n\n\n\n");
+	
+	//file 3
+	char threefile[256];
+	int three_local_file_fd=0;
+	snprintf(threefile, sizeof(threefile), "%s", fd_to_name[local_fd]);
+    	threefile[(strlen(threefile))-4] = '\0'; 	
+    	strcat(threefile, "-3.txt");
+	printf("SAAMAJA what is threefile - saamaja %s \n\n\n\n", threefile);
+    	three_local_file_fd = _nvp_OPEN(threefile, O_CREAT | O_RDWR, 777);
+    	if (three_local_file_fd < 0) {
+	printf("saamaja fd three error\n");
+	}
+	ret3 = pwrite(three_local_file_fd, data_buf, strlen(data_buf), 0);
+	printf("MORNING trying to write file contents three back SAAMAJA  = %d\n\n\n\n", ret3);
+	response3.type = PWRITE;
+	response3.fd = three_local_file_fd;
+	response3.return_value = ret3;
+	ret3 = write(metadata_server_fd, &response3, sizeof(struct remote_response));
+	printf("TRIED TO WRITE TO METADATA SERVER \n\n\n\n", ret3);
+	if (ret3 < 0) {
+		DEBUG("failed writing response to metadata server 3 file\n");
+	}
+	DEBUG("sent response to metadata server 3 file\n");
+	delete_file_fd_node(three_local_file_fd);
+	printf("TRIED TO DELETE FILE_FD_NODE \n\n\n\n");
+	
 	/*
+	//Erasure coding starts here
 	char *first_file, *second_file, *P_file,*Q_file;
     	char data_buffer[256],firstfile[256], secondfile[256];
     	char finalParityP[256]="";
