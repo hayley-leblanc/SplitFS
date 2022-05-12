@@ -442,7 +442,7 @@ int handle_pwrite(struct ll_node* node, struct remote_request request) {
 	printf("trying out replication - saamaja %s \n\n\n\n", request.file_path);
 	srand(time(0));
 	int replication_erasure_flag = rand();
-	if(replication_erasure_flag % 2 == 0))
+	if(replication_erasure_flag % 2 == 0)
 	{
 	//replication starts here
 	//file 1
