@@ -442,19 +442,16 @@ int handle_pwrite(struct ll_node* node, struct remote_request request) {
         	{
         	firstfile[i] = data_buffer[i];
         	counter--;
-		printf("\n data_buffer = %c\n",data_buffer[i]);
-		printf("\n firstfile = %c\n",firstfile[i]);
-		
         }
         else
         {
         	secondfile[k]=data_buffer[i];
-		printf("\n data_buffer = %c\n",data_buffer[i]);
-		printf("\n secondfile = %c\n",secondfile[k]);
         	k++;
         }
 
     	}
+	firstfile[mid_num+1]='\0';
+    	secondfile[mid_num+1]='\0';
 	printf("\nfirst file char array %s\n",firstfile);
 	printf("\nsecond file char array %s\n",secondfile);
 
