@@ -540,7 +540,7 @@ int handle_pwrite(struct ll_node* node, struct remote_request request) {
 	printf("fd_to_name in other function fd SAAMAJA %d\n\n\n\n", local_fd);
 	printf("fd_to_name in other function filepath SAAMAJA %s\n\n\n\n", fd_to_name[local_fd]);
 	retA = pwrite(A_local_file_fd, first_file, strlen(first_file), 0);
-	printf("MORNING trying to write file contents A back SAAMAJA  = %d\n\n\n\n", local_fd);
+	printf("MORNING trying to write file contents A back SAAMAJA  = %d\n\n\n\n", retA);
 	
 
 
