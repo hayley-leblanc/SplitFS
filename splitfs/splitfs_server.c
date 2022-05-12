@@ -392,7 +392,7 @@ int handle_client_request(struct ll_node *node) {
 
 int handle_pwrite(struct ll_node* node, struct remote_request request) {
 	printf("server pwrite - 1 \n");
-	int ret, remote_fd, local_fd = 0;
+	int ret, retA, remote_fd, local_fd = 0;
 	struct remote_response response;
 	struct ll_node *cur;
 	char *data_buf;
@@ -536,9 +536,12 @@ int handle_pwrite(struct ll_node* node, struct remote_request request) {
     	if (A_local_file_fd < 0) {
 	printf("saamaja fd error\n");
 	}
-    	printf("MORNING saamaja trying to create A file_fd=%d\n\n\n\n\n",A_local_file_fd);
+    	printf("saamaja trying to create A file_fd=%d\n\n\n\n\n",A_local_file_fd);
 	printf("fd_to_name in other function fd SAAMAJA %d\n\n\n\n", local_fd);
 	printf("fd_to_name in other function filepath SAAMAJA %s\n\n\n\n", fd_to_name[local_fd]);
+	retA = pwrite(A_local_file_fd, first_file, strlen(first_file), 0);
+	printf("MORNING trying to write file contents A back SAAMAJA  = %d\n\n\n\n", local_fd);
+	
 
 
 	// TODO: should this just be pwrite?
