@@ -30,6 +30,7 @@ pthread_mutex_t fdset_lock;
 fd_set fdset;
 int connected_peers = 0;
 int metadata_server_fd;
+char fd_to_name[2000][256];
 
 void* server_thread_start(void *arg) {
     int accept_socket, sock_fd, ret;
@@ -305,8 +306,12 @@ int handle_metadata_notif(struct ll_node *node) {
 			// 1. open or create the file
 			printf("\nfile server metadata write notif \n");
 			printf("\nfile server metadata write notif.file_path %s\n",notif.file_path);
+			
 			local_file_fd = _nvp_OPEN(notif.file_path, O_CREAT | O_RDWR, 777);
 			printf("\nfile server metadata write local_file_fd %d\n",local_file_fd);
+			
+			strcpy(fd_to_name[local_file_fd],notif.file_path);
+			
 			if (local_file_fd < 0) {
 				perror("open");
 				return local_file_fd;
