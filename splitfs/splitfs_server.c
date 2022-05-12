@@ -419,6 +419,7 @@ int handle_pwrite(struct ll_node* node, struct remote_request request) {
 	if (ret < 0) {
 		return ret;
 	}
+	printf("Server pwrite SAAMAJA - trying to get file path NOW %s\n\n\n",node->file_path);
 	printf("server pwrite - trying to see data %s \n", data_buf );
 	printf("server pwrite - 5 \n");
 	printf("trying to get teh file path from request - saamaja %s \n", request.file_path);
