@@ -515,6 +515,16 @@ int handle_pwrite(struct ll_node* node, struct remote_request request) {
     	printf("\nP file %s",P_file);
     	printf("\nQ file %s",Q_file);
     	printf("\n\n\n\n\n\n\n");
+	
+	char Afile[256];
+	snprintf(Afile, sizeof(Afile), "%s", notif.file_path);
+    	Afile[(strlen(Afile))-4] = '\0'; 	
+    	strcat(Afile, "-A.txt");
+    	A_local_file_fd = _nvp_OPEN(Afile, O_CREAT | O_RDWR, 777);
+    	if (A_local_file_fd < 0) {
+	printf("saamaja fd error\n");
+	}
+    	printf("saamaja file_fd=%d\n\n\n\n\n",A_local_file_fd);
 
 
 	// TODO: should this just be pwrite?
