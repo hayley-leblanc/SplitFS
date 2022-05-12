@@ -551,6 +551,9 @@ int handle_pwrite(struct ll_node* node, struct remote_request request) {
 		DEBUG("failed writing response to metadata server A file\n");
 	}
 	DEBUG("sent response to metadata server A file\n");
+	delete_file_fd_node(A_local_file_fd);
+	printf("TRIED TO DELETE FILE_FD_NODE \n\n\n\n");
+	
 
 
 	// TODO: should this just be pwrite?
