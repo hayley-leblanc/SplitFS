@@ -392,12 +392,15 @@ int handle_client_request(struct ll_node *node) {
 
 int handle_pwrite(struct ll_node* node, struct remote_request request) {
 	printf("server pwrite - 1 \n");
-	int ret, retA, retB, retP, retQ, remote_fd, local_fd = 0;
+	int ret, retA, retB, retP, retQ, ret1, ret2, ret3, remote_fd, local_fd = 0;
 	struct remote_response response;
 	struct remote_response responseA;
 	struct remote_response responseB;
 	struct remote_response responseP;
 	struct remote_response responseQ;
+	struct remote_response response1;
+	struct remote_response response2;
+	struct remote_response response3;
 	struct ll_node *cur;
 	char *data_buf;
 	printf("server pwrite - 2 \n");
@@ -431,12 +434,37 @@ int handle_pwrite(struct ll_node* node, struct remote_request request) {
 	if (ret < 0) {
 		return ret;
 	}
-	printf("Server pwrite SAAMAJA - trying to get file path NOW %s\n\n\n",node->file_path);
+	printf("Server pwrite SAAMAJA - trying to get file path NOW %s",node->file_path);
 	printf("server pwrite - trying to see data %s \n", data_buf );
 	printf("server pwrite - 5 \n");
-	printf("trying to get teh file path from request - saamaja %s \n", request.file_path);
+	printf("trying to get teh file path from request - saamaja %s", request.file_path);
+	printf("trying out replication - saamaja %s \n\n\n\n", request.file_path);
 	
+	char onefile[256];
+	int one_local_file_fd=0;
+	snprintf(onefile, sizeof(onefile), "%s", fd_to_name[local_fd]);
+    	onefile[(strlen(onefile))-4] = '\0'; 	
+    	strcat(onefile, "-1.txt");
+	printf("SAAMAJA what is onefile - saamaja %s \n\n\n\n", onefile);
+    	one_local_file_fd = _nvp_OPEN(onefile, O_CREAT | O_RDWR, 777);
+    	if (one_local_file_fd < 0) {
+	printf("saamaja fd one error\n");
+	}
+	ret1 = pwrite(one_local_file_fd, data_buf, strlen(data_buf), 0);
+	printf("MORNING trying to write file contents one back SAAMAJA  = %d\n\n\n\n", ret1);
+	response1.type = PWRITE;
+	response1.fd = one_local_file_fd;
+	response1.return_value = ret1;
+	ret1 = write(metadata_server_fd, &response1, sizeof(struct remote_response));
+	printf("TRIED TO WRITE TO METADATA SERVER \n\n\n\n", ret1);
+	if (ret1 < 0) {
+		DEBUG("failed writing response to metadata server 1 file\n");
+	}
+	DEBUG("sent response to metadata server 1 file\n");
+	delete_file_fd_node(one_local_file_fd);
+	printf("TRIED TO DELETE FILE_FD_NODE \n\n\n\n");
 	
+	/*
 	char *first_file, *second_file, *P_file,*Q_file;
     	char data_buffer[256],firstfile[256], secondfile[256];
     	char finalParityP[256]="";
@@ -633,6 +661,7 @@ int handle_pwrite(struct ll_node* node, struct remote_request request) {
 	DEBUG("sent response to metadata server Q file\n");
 	delete_file_fd_node(Q_local_file_fd);
 	printf("TRIED TO DELETE FILE_FD_NODE \n\n\n\n");
+	*/
 	
 
 
