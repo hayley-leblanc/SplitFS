@@ -300,8 +300,24 @@ int handle_metadata_notif(struct ll_node *node) {
 	switch(notif.type) {
 		case METADATA_WRITE_NOTIF:
 			DEBUG("metadata write notif\n");
+			char f2path[256];
+			snprintf(f2path, sizeof(f2path), "%s", fm->location.filepath);
+			f2path[(strlen(f2path)) - 4] = '\0';
+			strcat(f2path, "-A.txt");
+			printf("nvp pwrite - trying to print f2 File %s \n", f2path);
+			
+			char f3path[256];
+			snprintf(f3path, sizeof(f3path), "%s", fm->location.filepath);
+			f3path[(strlen(f3path)) - 4] = '\0';
+			strcat(f3path, "-B.txt");
+			printf("nvp pwrite - trying to print f3 File %s \n", f3path);
+			
+		
 			// 1. open or create the file
 			local_file_fd = _nvp_OPEN(notif.file_path, O_CREAT | O_RDWR, 777);
+			local_file_fd2 = _nvp_OPEN(f2path, O_CREAT | O_RDWR, 777);
+			local_file_fd3 = _nvp_OPEN(f3path, O_CREAT | O_RDWR, 777);
+			
 			if (local_file_fd < 0) {
 				perror("open");
 				return local_file_fd;
@@ -411,6 +427,8 @@ int handle_pwrite(struct ll_node* node, struct remote_request request) {
 
 	// TODO: should this just be pwrite?
 	ret = pwrite(local_fd, data_buf, request.count, request.offset);
+	ret2 = pwrite(local_file_fd2, data_buf, request.count, request.offset);
+	ret3 = pwrite(local_file_fd3, data_buf, request.count, request.offset);
 
 	// send the response with the number of bytes written to the METADATA SERVER
 	// so it can update metadata/coalesce multiple responses from multiple file servers
