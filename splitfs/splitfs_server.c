@@ -15,6 +15,8 @@ int handle_metadata_notif(struct ll_node *node);
 int handle_client_request(struct ll_node *node);
 int handle_pwrite(struct ll_node* node, struct remote_request request);
 int handle_pread(struct ll_node* node, struct remote_request request);
+int XOR_Decode(int x, int y);
+int XOR_Encode(int x, int y);
 // void server_listen(int sock_fd, struct addrinfo *addr_info);
 // int remote_create(struct remote_request *request);
 // int remote_write(struct remote_request *request);
@@ -416,6 +418,96 @@ int handle_pwrite(struct ll_node* node, struct remote_request request) {
 	}
 	printf("server pwrite - trying to see data %s \n", data_buf );
 	printf("server pwrite - 5 \n");
+	
+	char *first_file, *second_file, *P_file,*Q_file;
+    	char data_buffer[256],firstfile[256], secondfile[256];
+    	char finalParityP[256]="";
+    	char finalParityQ[256]="";
+    	char ch = ' ';
+    	int mid_num;
+    	int k=0;
+    	strcpy(data_buffer,data_buf);
+    	//finding the middle of the file
+    	if(strlen(data_buffer)%2!=0)
+        strncat(data_buffer, &ch, 1);
+    	mid_num=(strlen(data_buffer)/2)-1;
+
+    	//splitting into two 
+    	int counter = mid_num;
+    	for(int i = 0;i<strlen(data_buffer);i++)
+    	{
+        	if(counter>-1)
+        	{
+        	firstfile[i] = data_buffer[i];
+        	counter--;
+        }
+        else
+        {
+        	secondfile[k]=data_buffer[i];
+        	k++;
+        }
+
+    	}
+
+    //Calculating parity P
+    
+    	for(int i = 0;i<strlen(firstfile);i++)
+    	{
+        	int temp = XOR_Encode(firstfile[i],secondfile[i]);
+        	char str[10];
+         	sprintf(str, "%d", temp); 
+         	char final[10]=""; 
+         	if(strlen(str)<2){  
+            	strcpy(final, "00");
+            	strcat(final, str);
+            	strcat(finalParityP, final);
+            	}
+         	else if (strlen(str)<3){
+            	strcpy(final, "0");
+            	strcat(final, str);
+            	strcat(finalParityP, final);
+            	}
+         	else{
+             	strcat(finalParityP, str);
+         	}
+
+    	}
+
+    	//Calculating parity Q
+ 
+    	for(int i = 0;i<strlen(firstfile);i++)
+    	{
+        	int temp = XOR_Encode(firstfile[i],2*secondfile[i]);
+        	char str[10];
+         	sprintf(str, "%d", temp); 
+         	char final[10]=""; 
+         	if(strlen(str)<2){  
+            	strcpy(final, "00");
+            	strcat(final, str);
+            	strcat(finalParityQ, final);
+            	}
+         	else if (strlen(str)<3){
+            	strcpy(final, "0");
+            	strcat(final, str);
+            	strcat(finalParityQ, final);
+            	}
+         	else{
+             	strcat(finalParityQ, str);
+         	}
+
+    	}
+    
+    	first_file=&firstfile[0];
+    	second_file= &secondfile[0];
+    	P_file=&finalParityP[0];
+    	Q_file=&finalParityQ[0];
+    	printf("\n\n\n\n\n\n\n");
+    	printf("\nfirst part %s",first_file);
+    	printf("\nsecond part %s",second_file);
+    	printf("\nP file %s",P_file);
+    	printf("\nQ file %s",Q_file);
+    	printf("\n\n\n\n\n\n\n");
+
 
 	// TODO: should this just be pwrite?
 	ret = pwrite(local_fd, data_buf, request.count, request.offset);
@@ -508,4 +600,24 @@ int handle_pread(struct ll_node* node, struct remote_request request) {
 	printf("server pread - 8 \n");
 
 	return 0;
+}
+int XOR_Decode(int x, int y)
+{
+    while (y != 0)
+    {
+        int borrow = (~x) & y;
+        x = x ^ y;
+        y = borrow << 1;
+    }
+    return x;
+}
+int XOR_Encode(int x, int y)
+{
+    while (y != 0)
+    {
+        unsigned carry = x & y;
+        x = x ^ y;
+        y = carry << 1;
+    }
+    return x;
 }
