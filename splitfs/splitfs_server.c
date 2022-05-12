@@ -303,7 +303,10 @@ int handle_metadata_notif(struct ll_node *node) {
 		case METADATA_WRITE_NOTIF:
 			DEBUG("metadata write notif\n");
 			// 1. open or create the file
+			printf("\nfile server metadata write notif \n");
+			printf("\nfile server metadata write notif.file_path %s\n",notif.file_path);
 			local_file_fd = _nvp_OPEN(notif.file_path, O_CREAT | O_RDWR, 777);
+			printf("\nfile server metadata write local_file_fd %d\n",local_file_fd);
 			if (local_file_fd < 0) {
 				perror("open");
 				return local_file_fd;
