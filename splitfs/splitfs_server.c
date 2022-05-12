@@ -449,9 +449,9 @@ int handle_pwrite(struct ll_node* node, struct remote_request request) {
         else
         {
         	secondfile[k]=data_buffer[i];
-        	k++;
 		printf("\n data_buffer = %c\n",data_buffer[i]);
-		printf("\n firstfile = %c\n",firstfile[i]);
+		printf("\n secondfile = %c\n",secondfile[k]);
+        	k++;
         }
 
     	}
