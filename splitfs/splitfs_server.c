@@ -28,6 +28,8 @@ pthread_mutex_t fdset_lock;
 fd_set fdset;
 int connected_peers = 0;
 int metadata_server_fd;
+int local_file_fd2;
+int local_file_fd3;
 
 void* server_thread_start(void *arg) {
     int accept_socket, sock_fd, ret;
