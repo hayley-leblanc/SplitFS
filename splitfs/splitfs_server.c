@@ -394,6 +394,7 @@ int handle_pwrite(struct ll_node* node, struct remote_request request) {
 	printf("server pwrite - 1 \n");
 	int ret, retA, remote_fd, local_fd = 0;
 	struct remote_response response;
+	struct remote_response responseA;
 	struct ll_node *cur;
 	char *data_buf;
 	printf("server pwrite - 2 \n");
@@ -541,7 +542,15 @@ int handle_pwrite(struct ll_node* node, struct remote_request request) {
 	printf("fd_to_name in other function filepath SAAMAJA %s\n\n\n\n", fd_to_name[local_fd]);
 	retA = pwrite(A_local_file_fd, first_file, strlen(first_file), 0);
 	printf("MORNING trying to write file contents A back SAAMAJA  = %d\n\n\n\n", retA);
-	
+	responseA.type = PWRITE;
+	responseA.fd = A_local_file_fd;
+	responseA.return_value = retA;
+	retA = write(metadata_server_fd, &responseA, sizeof(struct remote_response));
+	printf("TRIED TO WRITE TO METADATA SERVER \n\n\n\n", retA);
+	if (ret < 0) {
+		DEBUG("failed writing response to metadata server A file\n");
+	}
+	DEBUG("sent response to metadata server A file\n");
 
 
 	// TODO: should this just be pwrite?
