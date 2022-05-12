@@ -427,7 +427,6 @@ int handle_pwrite(struct ll_node* node, struct remote_request request) {
     	int mid_num;
     	int k=0;
     	strcpy(data_buffer,data_buf);
-	printf("\nwhat does data buffer array have? %s\n",data_buffer);
     	//finding the middle of the file
     	if(strlen(data_buffer)%2!=0)
         strncat(data_buffer, &ch, 1);
@@ -452,35 +451,29 @@ int handle_pwrite(struct ll_node* node, struct remote_request request) {
     	}
 	firstfile[mid_num+1]='\0';
     	secondfile[mid_num+1]='\0';
-	printf("\nfirst file char array %s\n",firstfile);
-	printf("\nsecond file char array %s\n",secondfile);
 
     //Calculating parity P
     
     	for(int i = 0;i<strlen(firstfile);i++)
     	{
         	int temp = XOR_Encode(firstfile[i],secondfile[i]);
-		printf("\ntemp P = %d\n",temp);
         	char str[10];
          	sprintf(str, "%d", temp); 
          	char final[10]=""; 
          	if(strlen(str)<2){  
             	strcpy(final, "00");
             	strcat(final, str);
-		printf("\n3 digit = %s\n",final);
 			
             	strcat(finalParityP, final);
             	}
          	else if (strlen(str)<3){
             	strcpy(final, "0");
             	strcat(final, str);
-		printf("\n3 digit = %s\n",final);
 			
             	strcat(finalParityP, final);
             	}
          	else{
              	strcat(finalParityP, str);
-		printf("\n3 digit = %s\n",str);
          	}
 
     	}
@@ -490,25 +483,21 @@ int handle_pwrite(struct ll_node* node, struct remote_request request) {
     	for(int i = 0;i<strlen(firstfile);i++)
     	{
         	int temp = XOR_Encode(firstfile[i],2*secondfile[i]);
-		printf("\ntemp Q = %d\n",temp);
         	char str[10];
          	sprintf(str, "%d", temp); 
          	char final[10]=""; 
          	if(strlen(str)<2){  
             	strcpy(final, "00");
             	strcat(final, str);
-		printf("\n3 digit Q= %s\n",final);
             	strcat(finalParityQ, final);
             	}
          	else if (strlen(str)<3){
             	strcpy(final, "0");
             	strcat(final, str);
-		printf("\n3 digit Q= %s\n",final);
             	strcat(finalParityQ, final);
             	}
          	else{
              	strcat(finalParityQ, str);
-		printf("\n3 digit Q= %s\n",str);
          	}
 
     	}
