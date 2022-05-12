@@ -442,11 +442,16 @@ int handle_pwrite(struct ll_node* node, struct remote_request request) {
         	{
         	firstfile[i] = data_buffer[i];
         	counter--;
+		printf("\n data_buffer = %c\n",data_buffer[i]);
+		printf("\n firstfile = %c\n",firstfile[i]);
+		
         }
         else
         {
         	secondfile[k]=data_buffer[i];
         	k++;
+		printf("\n data_buffer = %c\n",data_buffer[i]);
+		printf("\n firstfile = %c\n",firstfile[i]);
         }
 
     	}
@@ -458,7 +463,7 @@ int handle_pwrite(struct ll_node* node, struct remote_request request) {
     	for(int i = 0;i<strlen(firstfile);i++)
     	{
         	int temp = XOR_Encode(firstfile[i],secondfile[i]);
-		printf("\ntemp P = %s\n",temp);
+		printf("\ntemp P = %d\n",temp);
         	char str[10];
          	sprintf(str, "%d", temp); 
          	char final[10]=""; 
@@ -488,7 +493,7 @@ int handle_pwrite(struct ll_node* node, struct remote_request request) {
     	for(int i = 0;i<strlen(firstfile);i++)
     	{
         	int temp = XOR_Encode(firstfile[i],2*secondfile[i]);
-		printf("\ntemp Q = %s\n",temp);
+		printf("\ntemp Q = %d\n",temp);
         	char str[10];
          	sprintf(str, "%d", temp); 
          	char final[10]=""; 
