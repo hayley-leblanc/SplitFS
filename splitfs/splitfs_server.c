@@ -379,7 +379,7 @@ int handle_metadata_notif(struct ll_node *node) {
 			response.fd = local_file_fd;
 			response.return_value = local_file_fd;
 			response.type = METADATA_READ_NOTIF;
-			DEBUG("sending read ack\n");
+			DEBUG("sending read ack to %d\n", node->fd);
 			ret = write(node->fd, &response, sizeof(struct remote_response));
 			if (write < 0) {
 				perror("write");
