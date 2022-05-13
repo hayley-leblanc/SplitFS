@@ -381,7 +381,7 @@ int handle_metadata_notif(struct ll_node *node) {
 			response.type = METADATA_READ_NOTIF;
 			DEBUG("sending read ack to %d\n", node->fd);
 			ret = write(node->fd, &response, sizeof(struct remote_response));
-			if (write < 0) {
+			if (ret < 0) {
 				perror("write");
 				return ret;
 			}
