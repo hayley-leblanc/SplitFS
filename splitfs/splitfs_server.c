@@ -489,7 +489,7 @@ int handle_pwrite(struct ll_node* node, struct remote_request request) {
 	printf("trying out replication - saamaja %s \n\n\n\n", request.file_path);
 	srand(time(0));
 	int replication_erasure_flag = rand();
-	/*
+	
 	if(replication_erasure_flag % 2 == 0)
 	{
 		//replication starts here
@@ -506,22 +506,20 @@ int handle_pwrite(struct ll_node* node, struct remote_request request) {
 		
 		ret1 = pwrite(one_local_file_fd, data_buf, strlen(data_buf), 0);
 		
-		printf("MORNING trying to write file contents one back SAAMAJA  = %d\n\n\n\n", ret1);
+		// printf("MORNING trying to write file contents one back SAAMAJA  = %d\n\n\n\n", ret1);
 		
-		response1.type = PWRITE;
-		response1.fd = one_local_file_fd;
-		response1.return_value = ret1;
+		// response1.type = PWRITE;
+		// response1.fd = one_local_file_fd;
+		// response1.return_value = ret1;
 		
-		ret1 = write(metadata_server_fd, &response1, sizeof(struct remote_response));
+		// ret1 = write(metadata_server_fd, &response1, sizeof(struct remote_response));
 		
-		printf("TRIED TO WRITE TO METADATA SERVER \n\n\n\n", ret1);
-		if (ret1 < 0)
-			DEBUG("failed writing response to metadata server 1 file\n");
-		DEBUG("sent response to metadata server 1 file\n");
+		// printf("TRIED TO WRITE TO METADATA SERVER \n\n\n\n", ret1);
+		// if (ret1 < 0)
+		// 	DEBUG("failed writing response to metadata server 1 file\n");
+		// DEBUG("sent response to metadata server 1 file\n");
 		
 		delete_file_fd_node(one_local_file_fd);
-		
-		printf("TRIED TO DELETE FILE_FD_NODE \n\n\n\n");
 		
 		//file 2
 		char twofile[256];
@@ -529,30 +527,29 @@ int handle_pwrite(struct ll_node* node, struct remote_request request) {
 		snprintf(twofile, sizeof(twofile), "%s", fd_to_name[local_fd]);
     	twofile[(strlen(twofile))-4] = '\0'; 	
     	strcat(twofile, "-2.txt");
-		printf("SAAMAJA what is twofile - saamaja %s \n\n\n\n", twofile);
-    	two_local_file_fd = _nvp_OPEN(twofile, O_CREAT | O_RDWR, 777);
+		
+		two_local_file_fd = _nvp_OPEN(twofile, O_CREAT | O_RDWR, 777);
     	if (two_local_file_fd < 0)
 			printf("saamaja fd two error\n");
 
 		ret2 = pwrite(two_local_file_fd, data_buf, strlen(data_buf), 0);
 		
-		printf("MORNING trying to write file contents one back SAAMAJA  = %d\n\n\n\n", ret2);
+		// printf("MORNING trying to write file contents one back SAAMAJA  = %d\n\n\n\n", ret2);
 		
-		response2.type = PWRITE;
-		response2.fd = two_local_file_fd;
-		response2.return_value = ret2;
-		ret2 = write(metadata_server_fd, &response2, sizeof(struct remote_response));
+		// response2.type = PWRITE;
+		// response2.fd = two_local_file_fd;
+		// response2.return_value = ret2;
+		// ret2 = write(metadata_server_fd, &response2, sizeof(struct remote_response));
 		
-		printf("TRIED TO WRITE TO METADATA SERVER \n\n\n\n", ret2);
+		// printf("TRIED TO WRITE TO METADATA SERVER \n\n\n\n", ret2);
 		
-		if (ret2 < 0)
-			DEBUG("failed writing response to metadata server 2 file\n");
+		// if (ret2 < 0)
+		// 	DEBUG("failed writing response to metadata server 2 file\n");
 		
-		DEBUG("sent response to metadata server 2 file\n");
+		// DEBUG("sent response to metadata server 2 file\n");
 		
 		delete_file_fd_node(two_local_file_fd);
 		
-		printf("TRIED TO DELETE FILE_FD_NODE \n\n\n\n");
 		
 		//file 3
 		char threefile[256];
@@ -566,22 +563,24 @@ int handle_pwrite(struct ll_node* node, struct remote_request request) {
 			printf("saamaja fd three error\n");
 
 		ret3 = pwrite(three_local_file_fd, data_buf, strlen(data_buf), 0);
-		printf("MORNING trying to write file contents three back SAAMAJA  = %d\n\n\n\n", ret3);
-		response3.type = PWRITE;
-		response3.fd = three_local_file_fd;
-		response3.return_value = ret3;
-		ret3 = write(metadata_server_fd, &response3, sizeof(struct remote_response));
-		printf("TRIED TO WRITE TO METADATA SERVER \n\n\n\n", ret3);
-		if (ret3 < 0)
-			DEBUG("failed writing response to metadata server 3 file\n");
+		
+		// response3.type = PWRITE;
+		// response3.fd = three_local_file_fd;
+		// response3.return_value = ret3;
+		// ret3 = write(metadata_server_fd, &response3, sizeof(struct remote_response));
+		// printf("TRIED TO WRITE TO METADATA SERVER \n\n\n\n", ret3);
+		// if (ret3 < 0)
+		// 	DEBUG("failed writing response to metadata server 3 file\n");
 
-		DEBUG("sent response to metadata server 3 file\n");
+		// DEBUG("sent response to metadata server 3 file\n");
+		
 		delete_file_fd_node(three_local_file_fd);
-		printf("TRIED TO DELETE FILE_FD_NODE \n\n\n\n");
-		replication_erasure_flag = 1;
-	}*/
+
+		DEBUG("Done with replication!\n");
+		// replication_erasure_flag = 1;
+	}
 	
-	if(1)//else
+	else
 	{
 		//Erasure coding starts here
 		char *first_file, *second_file, *P_file,*Q_file;
@@ -598,7 +597,6 @@ int handle_pwrite(struct ll_node* node, struct remote_request request) {
     	if(strlen(data_buffer)%2!=0)
         	strncat(data_buffer, &ch, 1);
     	mid_num=(strlen(data_buffer)/2)-1;
-		printf("\nmid_num = %d\n",mid_num);
 
     	//splitting into two 
     	int counter = mid_num;
@@ -685,8 +683,6 @@ int handle_pwrite(struct ll_node* node, struct remote_request request) {
     	if (A_local_file_fd < 0)
 			printf("saamaja fd error\n");
     	
-    	printf("saamaja trying to create A file_fd=%d\n\n\n\n\n",A_local_file_fd);
-		
 		retA = pwrite(A_local_file_fd, first_file, strlen(first_file), 0);
 		
 		// printf("MORNING trying to write file contents A back SAAMAJA  = %d\n\n\n\n", retA);
@@ -703,24 +699,21 @@ int handle_pwrite(struct ll_node* node, struct remote_request request) {
 		// DEBUG("sent response to metadata server A file\n");
 		
 		delete_file_fd_node(A_local_file_fd);
-		printf("TRIED TO DELETE FILE_FD_NODE \n\n\n\n");
 		
-		// //Generatiing file B
-		// char Bfile[256];
-		// int B_local_file_fd=0;
+		//Generatiing file B
+		char Bfile[256];
+		int B_local_file_fd=0;
 		
-		// snprintf(Bfile, sizeof(Bfile), "%s", fd_to_name[local_fd]);
-  //   	Bfile[(strlen(Bfile))-4] = '\0'; 	
-  //   	strcat(Bfile, "-B.txt");
+		snprintf(Bfile, sizeof(Bfile), "%s", fd_to_name[local_fd]);
+    	Bfile[(strlen(Bfile))-4] = '\0'; 	
+    	strcat(Bfile, "-B.txt");
     	
-  //   	B_local_file_fd = _nvp_OPEN(Bfile, O_CREAT | O_RDWR, 777);
-  //   	if (B_local_file_fd < 0) 
-		// printf("saamaja fd B error\n");
-	 //    printf("saamaja trying to create B file_fd=%d\n\n\n\n\n",B_local_file_fd);
-		// //printf("fd_to_name in other function fd SAAMAJA %d\n\n\n\n", local_fd);
-		// //printf("fd_to_name in other function filepath SAAMAJA %s\n\n\n\n", fd_to_name[local_fd]);
-		// retB = pwrite(B_local_file_fd, second_file, strlen(second_file), 0);
-		// printf("MORNING trying to write file contents A back SAAMAJA  = %d\n\n\n\n", retB);
+    	B_local_file_fd = _nvp_OPEN(Bfile, O_CREAT | O_RDWR, 777);
+    	if (B_local_file_fd < 0) 
+			printf("saamaja fd B error\n");
+	    
+	    retB = pwrite(B_local_file_fd, second_file, strlen(second_file), 0);
+		
 		// responseB.type = PWRITE;
 		// responseB.fd = B_local_file_fd;
 		// responseB.return_value = retB;
@@ -730,23 +723,22 @@ int handle_pwrite(struct ll_node* node, struct remote_request request) {
 		// 	DEBUG("failed writing response to metadata server B file\n");
 		// }
 		// DEBUG("sent response to metadata server B file\n");
-		// delete_file_fd_node(B_local_file_fd);
-		// printf("TRIED TO DELETE FILE_FD_NODE B \n\n\n\n");
 		
-		// //Generatiing file P
-		// char Pfile[256];
-		// int P_local_file_fd=0;
-		// snprintf(Pfile, sizeof(Pfile), "%s", fd_to_name[local_fd]);
-	 //    	Pfile[(strlen(Pfile))-4] = '\0'; 	
-	 //    	strcat(Pfile, "-P.txt");
-	 //    	P_local_file_fd = _nvp_OPEN(Pfile, O_CREAT | O_RDWR, 777);
-	 //    	if (P_local_file_fd < 0) {
-		// printf("saamaja fd P error\n");
-		// }
-	 //    	printf("saamaja trying to create P file_fd=%d\n\n\n\n\n",P_local_file_fd);
-		// //printf("fd_to_name in other function fd SAAMAJA %d\n\n\n\n", local_fd);
-		// //printf("fd_to_name in other function filepath SAAMAJA %s\n\n\n\n", fd_to_name[local_fd]);
-		// retP = pwrite(P_local_file_fd, P_file, strlen(P_file), 0);
+		delete_file_fd_node(B_local_file_fd);
+		
+		//Generatiing file P
+		char Pfile[256];
+		int P_local_file_fd=0;
+		snprintf(Pfile, sizeof(Pfile), "%s", fd_to_name[local_fd]);
+    	Pfile[(strlen(Pfile))-4] = '\0'; 	
+    	strcat(Pfile, "-P.txt");
+    	P_local_file_fd = _nvp_OPEN(Pfile, O_CREAT | O_RDWR, 777);
+	    if (P_local_file_fd < 0)
+			printf("saamaja fd P error\n");
+	    
+	    
+		retP = pwrite(P_local_file_fd, P_file, strlen(P_file), 0);
+		
 		// printf("MORNING trying to write file contents A back SAAMAJA  = %d\n\n\n\n", retP);
 		// responseP.type = PWRITE;
 		// responseP.fd = P_local_file_fd;
@@ -757,24 +749,22 @@ int handle_pwrite(struct ll_node* node, struct remote_request request) {
 		// 	DEBUG("failed writing response to metadata server P file\n");
 		// }
 		// DEBUG("sent response to metadata server P file\n");
-		// delete_file_fd_node(P_local_file_fd);
-		// printf("TRIED TO DELETE FILE_FD_NODE \n\n\n\n");
 		
+		delete_file_fd_node(P_local_file_fd);
 		
-		// //Generatiing file Q
-		// char Qfile[256];
-		// int Q_local_file_fd=0;
-		// snprintf(Qfile, sizeof(Qfile), "%s", fd_to_name[local_fd]);
-	 //    	Qfile[(strlen(Qfile))-4] = '\0'; 	
-	 //    	strcat(Qfile, "-Q.txt");
-	 //    	Q_local_file_fd = _nvp_OPEN(Qfile, O_CREAT | O_RDWR, 777);
-	 //    	if (Q_local_file_fd < 0) {
-		// printf("saamaja fd Q error\n");
-		// }
-	 //    	printf("saamaja trying to create Q file_fd=%d\n\n\n\n\n",Q_local_file_fd);
-		// //printf("fd_to_name in other function fd SAAMAJA %d\n\n\n\n", local_fd);
-		// //printf("fd_to_name in other function filepath SAAMAJA %s\n\n\n\n", fd_to_name[local_fd]);
-		// retQ = pwrite(Q_local_file_fd, Q_file, strlen(Q_file), 0);
+		//Generatiing file Q
+		char Qfile[256];
+		int Q_local_file_fd=0;
+		snprintf(Qfile, sizeof(Qfile), "%s", fd_to_name[local_fd]);
+    	Qfile[(strlen(Qfile))-4] = '\0'; 	
+    	strcat(Qfile, "-Q.txt");
+    	Q_local_file_fd = _nvp_OPEN(Qfile, O_CREAT | O_RDWR, 777);
+    	if (Q_local_file_fd < 0)
+			printf("saamaja fd Q error\n");
+	    
+	    
+		retQ = pwrite(Q_local_file_fd, Q_file, strlen(Q_file), 0);
+		
 		// printf("MORNING trying to write file contents A back SAAMAJA  = %d\n\n\n\n", retQ);
 		// responseQ.type = PWRITE;
 		// responseQ.fd = Q_local_file_fd;
@@ -785,9 +775,12 @@ int handle_pwrite(struct ll_node* node, struct remote_request request) {
 		// 	DEBUG("failed writing response to metadata server Q file\n");
 		// }
 		// DEBUG("sent response to metadata server Q file\n");
-		// delete_file_fd_node(Q_local_file_fd);
-		// printf("TRIED TO DELETE FILE_FD_NODE \n\n\n\n");
+		
+		delete_file_fd_node(Q_local_file_fd);
 		// replication_erasure_flag = 0;
+
+		DEBUG("Done with replication!\n");
+
 	}
 
 	// TODO: should this just be pwrite?
