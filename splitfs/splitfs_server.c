@@ -489,7 +489,8 @@ int handle_pwrite(struct ll_node* node, struct remote_request request) {
 	printf("trying out replication - saamaja %s \n\n\n\n", request.file_path);
 	srand(time(0));
 	int replication_erasure_flag = rand();
-	if(1 || replication_erasure_flag % 2 == 0)
+	/*
+	if(replication_erasure_flag % 2 == 0)
 	{
 		//replication starts here
 		//file 1
@@ -578,9 +579,9 @@ int handle_pwrite(struct ll_node* node, struct remote_request request) {
 		delete_file_fd_node(three_local_file_fd);
 		printf("TRIED TO DELETE FILE_FD_NODE \n\n\n\n");
 		replication_erasure_flag = 1;
-	}
-	/*
-	else
+	}*/
+	
+	if(1)//else
 	{
 		//Erasure coding starts here
 		char *first_file, *second_file, *P_file,*Q_file;
@@ -781,7 +782,6 @@ int handle_pwrite(struct ll_node* node, struct remote_request request) {
 	printf("TRIED TO DELETE FILE_FD_NODE \n\n\n\n");
 	replication_erasure_flag = 0;
 	}
-	*/
 
 	// TODO: should this just be pwrite?
 	ret = pwrite(local_fd, data_buf, request.count, request.offset);
