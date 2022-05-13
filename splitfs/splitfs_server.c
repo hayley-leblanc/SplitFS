@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <sys/socket.h>
 #include <netdb.h>
+#include<time.h>
 
 #include "remote.h"
 #include "fileops_nvp.h"
@@ -15,6 +16,8 @@ int handle_metadata_notif(struct ll_node *node);
 int handle_client_request(struct ll_node *node);
 int handle_pwrite(struct ll_node* node, struct remote_request request);
 int handle_pread(struct ll_node* node, struct remote_request request);
+int XOR_Decode(int x, int y);
+int XOR_Encode(int x, int y);
 // void server_listen(int sock_fd, struct addrinfo *addr_info);
 // int remote_create(struct remote_request *request);
 // int remote_write(struct remote_request *request);
@@ -28,6 +31,7 @@ pthread_mutex_t fdset_lock;
 fd_set fdset;
 int connected_peers = 0;
 int metadata_server_fd;
+char fd_to_name[2000][256];
 
 void* server_thread_start(void *arg) {
     int accept_socket, sock_fd, ret;
@@ -228,7 +232,6 @@ void* server_listen(void* args) {
     fd_set fdset_copy;
     struct remote_request request;
 	struct ll_node* cur;
-	bool done = false;
 
     while(1) {
         tv.tv_sec = 0;
@@ -256,67 +259,34 @@ void* server_listen(void* args) {
         if (ret < 0) {
             perror("select");
         } else {
-            // // determine which fd is ready
-            // // pthread_mutex_lock(&fdset_lock);
-			// cur = peer_fd_list_head;
-			// while (cur != NULL) {
-			// 	if (FD_ISSET(cur->fd, &fdset_copy) && cur->fd == metadata_server_fd) {
-			// 		printf("METADATA SERVER SET\n");
-			// 		// fd can either be for a connection with a client or with 
-			// 		// the metadata server
-			// 		// these functions handle requests and also disconnection
-			// 		switch (cur->type) {
-			// 			case METADATA_FD:
-			// 				DEBUG("metadata fd\n");
-			// 				ret = handle_metadata_notif(cur);
-			// 				if (ret < 0) {
-			// 					DEBUG("failed reading metadata server notification");
-			// 				}
-			// 				done = true;
-			// 				break;
-			// 			case CLIENT_FD:
-			// 				DEBUG("client fd\n");
-			// 				ret = handle_client_request(cur);
-			// 				if (ret < 0) {
-			// 					DEBUG("failed handling client request\n");
-			// 				}
-			// 				break;
-			// 		}
-			// 		break;
-			// 	}
-			// 	cur = cur->next;
-			// }
-
-			// if (!done) {
-				// printf("checking client fds\n");
-				cur = peer_fd_list_head;
-				while (cur != NULL) {
-					if (FD_ISSET(cur->fd, &fdset_copy)) {
-						// fd can either be for a connection with a client or with 
-						// the metadata server
-						// these functions handle requests and also disconnection
-						switch (cur->type) {
-							case METADATA_FD:
-								DEBUG("metadata fd\n");
-								ret = handle_metadata_notif(cur);
-								if (ret < 0) {
-									DEBUG("failed reading metadata server notification");
-								}
-								break;
-							case CLIENT_FD:
-								DEBUG("client fd %d\n", cur->fd);
-								ret = handle_client_request(cur);
-								if (ret < 0) {
-									DEBUG("failed handling client request\n");
-								}
-								break;
-						}
-						break;
+            // determine which fd is ready
+            // pthread_mutex_lock(&fdset_lock);
+			cur = peer_fd_list_head;
+			while (cur != NULL) {
+				if (FD_ISSET(cur->fd, &fdset_copy)) {
+					// fd can either be for a connection with a client or with 
+					// the metadata server
+					// these functions handle requests and also disconnection
+					switch (cur->type) {
+						case METADATA_FD:
+							DEBUG("metadata fd\n");
+							ret = handle_metadata_notif(cur);
+							if (ret < 0) {
+								DEBUG("failed reading metadata server notification");
+							}
+							break;
+						case CLIENT_FD:
+							DEBUG("client fd\n");
+							ret = handle_client_request(cur);
+							if (ret < 0) {
+								DEBUG("failed handling client request\n");
+							}
+							break;
 					}
-					cur = cur->next;
-				// }
+					break;
+				}
+				cur = cur->next;
 			}
-
 			// pthread_mutex_unlock(&fdset_lock);
         }
     }
@@ -326,7 +296,6 @@ void* server_listen(void* args) {
 int handle_metadata_notif(struct ll_node *node) {
 	int ret, bytes_read, local_file_fd;
 	struct remote_request notif;
-	struct remote_response response;
 	
 	bytes_read = read_from_socket(node->fd, &notif, sizeof(struct remote_request));
 	if (bytes_read < sizeof(struct remote_request)) {
@@ -336,7 +305,17 @@ int handle_metadata_notif(struct ll_node *node) {
 		case METADATA_WRITE_NOTIF:
 			DEBUG("metadata write notif\n");
 			// 1. open or create the file
-			local_file_fd = open(notif.file_path, O_CREAT | O_WRONLY, 777);
+			printf("\nfile server metadata write notif \n");
+			printf("\nfile server metadata write notif.file_path %s\n",notif.file_path);
+			
+			local_file_fd = _nvp_OPEN(notif.file_path, O_CREAT | O_RDWR, 777);
+			printf("\nfile server metadata write local_file_fd %d\n",local_file_fd);
+			
+			strcpy(fd_to_name[local_file_fd],notif.file_path);
+			printf("fd_to_name local fd SAAMAJA %d\n\n\n\n", local_file_fd);
+			printf("fd_to_name local file_path SAAMAJA %s\n\n\n\n", fd_to_name[local_file_fd]);
+				
+			
 			if (local_file_fd < 0) {
 				perror("open");
 				return local_file_fd;
@@ -344,21 +323,10 @@ int handle_metadata_notif(struct ll_node *node) {
 			// 2. save the file descriptor
 			new_file_fd_node(local_file_fd, notif.fd);
 			DEBUG("added local fd %d to record for remote fd %d\n", local_file_fd, notif.fd);
-
-			response.fd = local_file_fd;
-			response.return_value = local_file_fd;
-			response.type = METADATA_WRITE_NOTIF;
-			DEBUG("sending write ack\n");
-			ret = write(node->fd, &response, sizeof(struct remote_response));
-			if (write < 0) {
-				perror("write");
-				return ret;
-			}
-			DEBUG("sent write ack\n");
 			break;
 		case METADATA_READ_NOTIF:
 			DEBUG("metadata read notif\n");
-			local_file_fd = open(notif.file_path, O_RDONLY);
+			local_file_fd = _nvp_OPEN(notif.file_path, O_RDONLY);
 			if (local_file_fd < 0) {
 				perror("open");
 				return local_file_fd;
@@ -366,16 +334,6 @@ int handle_metadata_notif(struct ll_node *node) {
 			// 2. save the file descriptor
 			new_file_fd_node(local_file_fd, notif.fd);
 			DEBUG("added local fd %d to record for remote fd %d\n", local_file_fd, notif.fd);
-			response.fd = local_file_fd;
-			response.return_value = local_file_fd;
-			response.type = METADATA_READ_NOTIF;
-			DEBUG("sending read ack\n");
-			ret = write(node->fd, &response, sizeof(struct remote_response));
-			if (write < 0) {
-				perror("write");
-				return ret;
-			}
-			DEBUG("sent read ack\n");
 			break;
 		default:
 			DEBUG("unrecognized type %d\n", notif.type);
@@ -399,6 +357,7 @@ int handle_client_request(struct ll_node *node) {
 
 	switch(request.type) {
 		case PWRITE:
+			printf("switch case pwrite \n");
 			ret = handle_pwrite(node, request);
 			if (ret < 0) {
 				return ret;
@@ -413,6 +372,7 @@ int handle_client_request(struct ll_node *node) {
 			DEBUG("done handling pwrite, disconnected from client\n");
 			break;
 		case PREAD:
+			printf("switch case pread \n");
 			ret = handle_pread(node, request);
 			if (ret < 0) {
 				return ret;
@@ -432,10 +392,19 @@ int handle_client_request(struct ll_node *node) {
 }
 
 int handle_pwrite(struct ll_node* node, struct remote_request request) {
-	int ret, remote_fd, local_fd = 0;
+	printf("server pwrite - 1 \n");
+	int ret, retA, retB, retP, retQ, ret1, ret2, ret3, remote_fd, local_fd = 0;
 	struct remote_response response;
+	struct remote_response responseA;
+	struct remote_response responseB;
+	struct remote_response responseP;
+	struct remote_response responseQ;
+	struct remote_response response1;
+	struct remote_response response2;
+	struct remote_response response3;
 	struct ll_node *cur;
 	char *data_buf;
+	printf("server pwrite - 2 \n");
 
 	// find the local fd to write to
 	remote_fd = request.fd;
@@ -449,18 +418,9 @@ int handle_pwrite(struct ll_node* node, struct remote_request request) {
 	}
 	if (cur == NULL || local_fd == 0) {
 		DEBUG("requested file is not open\n");
-		response.type = PWRITE;
-		response.fd = request.fd;
-		response.return_value = -1;
-
-		DEBUG("sending response to metadata server\n");
-		ret = write(metadata_server_fd, &response, sizeof(struct remote_response));
-		if (ret < 0) {
-			DEBUG("failed writing response to metadata server\n");
-		}
-		DEBUG("sent response to metadata server\n");
 		return -1;
 	}
+	printf("server pwrite - 3 \n");
 
 	// allocate space to receive the incoming data
 	data_buf = malloc(request.count);
@@ -468,15 +428,306 @@ int handle_pwrite(struct ll_node* node, struct remote_request request) {
 		perror("malloc");
 		return -1;
 	}
+	printf("server pwrite - 4 \n");
 
 	// receive data
 	ret = read_from_socket(node->fd, data_buf, request.count);
 	if (ret < 0) {
 		return ret;
 	}
+	printf("Server pwrite SAAMAJA - trying to get file path NOW %s",node->file_path);
+	printf("server pwrite - trying to see data %s \n", data_buf );
+	printf("server pwrite - 5 \n");
+	printf("trying to get teh file path from request - saamaja %s", request.file_path);
+	printf("trying out replication - saamaja %s \n\n\n\n", request.file_path);
+	srand(time(0));
+	int replication_erasure_flag = rand();
+	if(replication_erasure_flag % 2 == 0)
+	{
+	//replication starts here
+	//file 1
+	char onefile[256];
+	int one_local_file_fd=0;
+	snprintf(onefile, sizeof(onefile), "%s", fd_to_name[local_fd]);
+    	onefile[(strlen(onefile))-4] = '\0'; 	
+    	strcat(onefile, "-1.txt");
+	printf("SAAMAJA what is onefile - saamaja %s \n\n\n\n", onefile);
+    	one_local_file_fd = _nvp_OPEN(onefile, O_CREAT | O_RDWR, 777);
+    	if (one_local_file_fd < 0) {
+	printf("saamaja fd one error\n");
+	}
+	ret1 = pwrite(one_local_file_fd, data_buf, strlen(data_buf), 0);
+	printf("MORNING trying to write file contents one back SAAMAJA  = %d\n\n\n\n", ret1);
+	response1.type = PWRITE;
+	response1.fd = one_local_file_fd;
+	response1.return_value = ret1;
+	ret1 = write(metadata_server_fd, &response1, sizeof(struct remote_response));
+	printf("TRIED TO WRITE TO METADATA SERVER \n\n\n\n", ret1);
+	if (ret1 < 0) {
+		DEBUG("failed writing response to metadata server 1 file\n");
+	}
+	DEBUG("sent response to metadata server 1 file\n");
+	delete_file_fd_node(one_local_file_fd);
+	printf("TRIED TO DELETE FILE_FD_NODE \n\n\n\n");
+	
+	//file 2
+	char twofile[256];
+	int two_local_file_fd=0;
+	snprintf(twofile, sizeof(twofile), "%s", fd_to_name[local_fd]);
+    	twofile[(strlen(twofile))-4] = '\0'; 	
+    	strcat(twofile, "-2.txt");
+	printf("SAAMAJA what is twofile - saamaja %s \n\n\n\n", twofile);
+    	two_local_file_fd = _nvp_OPEN(twofile, O_CREAT | O_RDWR, 777);
+    	if (two_local_file_fd < 0) {
+	printf("saamaja fd two error\n");
+	}
+	ret2 = pwrite(two_local_file_fd, data_buf, strlen(data_buf), 0);
+	printf("MORNING trying to write file contents one back SAAMAJA  = %d\n\n\n\n", ret2);
+	response2.type = PWRITE;
+	response2.fd = two_local_file_fd;
+	response2.return_value = ret2;
+	ret2 = write(metadata_server_fd, &response2, sizeof(struct remote_response));
+	printf("TRIED TO WRITE TO METADATA SERVER \n\n\n\n", ret2);
+	if (ret2 < 0) {
+		DEBUG("failed writing response to metadata server 2 file\n");
+	}
+	DEBUG("sent response to metadata server 2 file\n");
+	delete_file_fd_node(two_local_file_fd);
+	printf("TRIED TO DELETE FILE_FD_NODE \n\n\n\n");
+	
+	//file 3
+	char threefile[256];
+	int three_local_file_fd=0;
+	snprintf(threefile, sizeof(threefile), "%s", fd_to_name[local_fd]);
+    	threefile[(strlen(threefile))-4] = '\0'; 	
+    	strcat(threefile, "-3.txt");
+	printf("SAAMAJA what is threefile - saamaja %s \n\n\n\n", threefile);
+    	three_local_file_fd = _nvp_OPEN(threefile, O_CREAT | O_RDWR, 777);
+    	if (three_local_file_fd < 0) {
+	printf("saamaja fd three error\n");
+	}
+	ret3 = pwrite(three_local_file_fd, data_buf, strlen(data_buf), 0);
+	printf("MORNING trying to write file contents three back SAAMAJA  = %d\n\n\n\n", ret3);
+	response3.type = PWRITE;
+	response3.fd = three_local_file_fd;
+	response3.return_value = ret3;
+	ret3 = write(metadata_server_fd, &response3, sizeof(struct remote_response));
+	printf("TRIED TO WRITE TO METADATA SERVER \n\n\n\n", ret3);
+	if (ret3 < 0) {
+		DEBUG("failed writing response to metadata server 3 file\n");
+	}
+	DEBUG("sent response to metadata server 3 file\n");
+	delete_file_fd_node(three_local_file_fd);
+	printf("TRIED TO DELETE FILE_FD_NODE \n\n\n\n");
+	replication_erasure_flag = 1;
+	}
+	else
+	{
+	//Erasure coding starts here
+	char *first_file, *second_file, *P_file,*Q_file;
+    	char data_buffer[256],firstfile[256], secondfile[256];
+    	char finalParityP[256]="";
+    	char finalParityQ[256]="";
+    	char ch = ' ';
+    	int mid_num;
+    	int k=0;
+    	strcpy(data_buffer,data_buf);
+    	//finding the middle of the file
+    	if(strlen(data_buffer)%2!=0)
+        strncat(data_buffer, &ch, 1);
+    	mid_num=(strlen(data_buffer)/2)-1;
+	printf("\nmid_num = %d\n",mid_num);
+
+    	//splitting into two 
+    	int counter = mid_num;
+    	for(int i = 0;i<strlen(data_buffer);i++)
+    	{
+        	if(counter>-1)
+        	{
+        	firstfile[i] = data_buffer[i];
+        	counter--;
+        }
+        else
+        {
+        	secondfile[k]=data_buffer[i];
+        	k++;
+        }
+
+    	}
+	firstfile[mid_num+1]='\0';
+    	secondfile[mid_num+1]='\0';
+
+    //Calculating parity P
+    
+    	for(int i = 0;i<strlen(firstfile);i++)
+    	{
+        	int temp = XOR_Encode(firstfile[i],secondfile[i]);
+        	char str[10];
+         	sprintf(str, "%d", temp); 
+         	char final[10]=""; 
+         	if(strlen(str)<2){  
+            	strcpy(final, "00");
+            	strcat(final, str);
+			
+            	strcat(finalParityP, final);
+            	}
+         	else if (strlen(str)<3){
+            	strcpy(final, "0");
+            	strcat(final, str);
+			
+            	strcat(finalParityP, final);
+            	}
+         	else{
+             	strcat(finalParityP, str);
+         	}
+
+    	}
+
+    	//Calculating parity Q
+ 
+    	for(int i = 0;i<strlen(firstfile);i++)
+    	{
+        	int temp = XOR_Encode(firstfile[i],2*secondfile[i]);
+        	char str[10];
+         	sprintf(str, "%d", temp); 
+         	char final[10]=""; 
+         	if(strlen(str)<2){  
+            	strcpy(final, "00");
+            	strcat(final, str);
+            	strcat(finalParityQ, final);
+            	}
+         	else if (strlen(str)<3){
+            	strcpy(final, "0");
+            	strcat(final, str);
+            	strcat(finalParityQ, final);
+            	}
+         	else{
+             	strcat(finalParityQ, str);
+         	}
+
+    	}
+    
+    	first_file=&firstfile[0];
+    	second_file= &secondfile[0];
+    	P_file=&finalParityP[0];
+    	Q_file=&finalParityQ[0];
+	
+	//Generatiing file A
+	char Afile[256];
+	int A_local_file_fd=0;
+	snprintf(Afile, sizeof(Afile), "%s", fd_to_name[local_fd]);
+    	Afile[(strlen(Afile))-4] = '\0'; 	
+    	strcat(Afile, "-A.txt");
+    	A_local_file_fd = _nvp_OPEN(Afile, O_CREAT | O_RDWR, 777);
+    	if (A_local_file_fd < 0) {
+	printf("saamaja fd error\n");
+	}
+    	printf("saamaja trying to create A file_fd=%d\n\n\n\n\n",A_local_file_fd);
+	//printf("fd_to_name in other function fd SAAMAJA %d\n\n\n\n", local_fd);
+	//printf("fd_to_name in other function filepath SAAMAJA %s\n\n\n\n", fd_to_name[local_fd]);
+	retA = pwrite(A_local_file_fd, first_file, strlen(first_file), 0);
+	printf("MORNING trying to write file contents A back SAAMAJA  = %d\n\n\n\n", retA);
+	responseA.type = PWRITE;
+	responseA.fd = A_local_file_fd;
+	responseA.return_value = retA;
+	retA = write(metadata_server_fd, &responseA, sizeof(struct remote_response));
+	printf("TRIED TO WRITE TO METADATA SERVER \n\n\n\n", retA);
+	if (ret < 0) {
+		DEBUG("failed writing response to metadata server A file\n");
+	}
+	DEBUG("sent response to metadata server A file\n");
+	delete_file_fd_node(A_local_file_fd);
+	printf("TRIED TO DELETE FILE_FD_NODE \n\n\n\n");
+	
+	//Generatiing file B
+	char Bfile[256];
+	int B_local_file_fd=0;
+	snprintf(Bfile, sizeof(Bfile), "%s", fd_to_name[local_fd]);
+    	Bfile[(strlen(Bfile))-4] = '\0'; 	
+    	strcat(Bfile, "-B.txt");
+    	B_local_file_fd = _nvp_OPEN(Bfile, O_CREAT | O_RDWR, 777);
+    	if (B_local_file_fd < 0) {
+	printf("saamaja fd B error\n");
+	}
+    	printf("saamaja trying to create B file_fd=%d\n\n\n\n\n",B_local_file_fd);
+	//printf("fd_to_name in other function fd SAAMAJA %d\n\n\n\n", local_fd);
+	//printf("fd_to_name in other function filepath SAAMAJA %s\n\n\n\n", fd_to_name[local_fd]);
+	retB = pwrite(B_local_file_fd, second_file, strlen(second_file), 0);
+	printf("MORNING trying to write file contents A back SAAMAJA  = %d\n\n\n\n", retB);
+	responseB.type = PWRITE;
+	responseB.fd = B_local_file_fd;
+	responseB.return_value = retB;
+	retB = write(metadata_server_fd, &responseB, sizeof(struct remote_response));
+	printf("TRIED TO WRITE TO METADATA SERVER \n\n\n\n", retB);
+	if (ret < 0) {
+		DEBUG("failed writing response to metadata server B file\n");
+	}
+	DEBUG("sent response to metadata server B file\n");
+	delete_file_fd_node(B_local_file_fd);
+	printf("TRIED TO DELETE FILE_FD_NODE B \n\n\n\n");
+	
+	//Generatiing file P
+	char Pfile[256];
+	int P_local_file_fd=0;
+	snprintf(Pfile, sizeof(Pfile), "%s", fd_to_name[local_fd]);
+    	Pfile[(strlen(Pfile))-4] = '\0'; 	
+    	strcat(Pfile, "-P.txt");
+    	P_local_file_fd = _nvp_OPEN(Pfile, O_CREAT | O_RDWR, 777);
+    	if (P_local_file_fd < 0) {
+	printf("saamaja fd P error\n");
+	}
+    	printf("saamaja trying to create P file_fd=%d\n\n\n\n\n",P_local_file_fd);
+	//printf("fd_to_name in other function fd SAAMAJA %d\n\n\n\n", local_fd);
+	//printf("fd_to_name in other function filepath SAAMAJA %s\n\n\n\n", fd_to_name[local_fd]);
+	retP = pwrite(P_local_file_fd, P_file, strlen(P_file), 0);
+	printf("MORNING trying to write file contents A back SAAMAJA  = %d\n\n\n\n", retP);
+	responseP.type = PWRITE;
+	responseP.fd = P_local_file_fd;
+	responseP.return_value = retP;
+	retP = write(metadata_server_fd, &responseP, sizeof(struct remote_response));
+	printf("TRIED TO WRITE TO METADATA SERVER  P\n\n\n\n", retP);
+	if (ret < 0) {
+		DEBUG("failed writing response to metadata server P file\n");
+	}
+	DEBUG("sent response to metadata server P file\n");
+	delete_file_fd_node(P_local_file_fd);
+	printf("TRIED TO DELETE FILE_FD_NODE \n\n\n\n");
+	
+	
+	//Generatiing file Q
+	char Qfile[256];
+	int Q_local_file_fd=0;
+	snprintf(Qfile, sizeof(Qfile), "%s", fd_to_name[local_fd]);
+    	Qfile[(strlen(Qfile))-4] = '\0'; 	
+    	strcat(Qfile, "-Q.txt");
+    	Q_local_file_fd = _nvp_OPEN(Qfile, O_CREAT | O_RDWR, 777);
+    	if (Q_local_file_fd < 0) {
+	printf("saamaja fd Q error\n");
+	}
+    	printf("saamaja trying to create Q file_fd=%d\n\n\n\n\n",Q_local_file_fd);
+	//printf("fd_to_name in other function fd SAAMAJA %d\n\n\n\n", local_fd);
+	//printf("fd_to_name in other function filepath SAAMAJA %s\n\n\n\n", fd_to_name[local_fd]);
+	retQ = pwrite(Q_local_file_fd, Q_file, strlen(Q_file), 0);
+	printf("MORNING trying to write file contents A back SAAMAJA  = %d\n\n\n\n", retQ);
+	responseQ.type = PWRITE;
+	responseQ.fd = Q_local_file_fd;
+	responseQ.return_value = retQ;
+	retQ = write(metadata_server_fd, &responseQ, sizeof(struct remote_response));
+	printf("TRIED TO WRITE TO METADATA SERVER Q \n\n\n\n", retQ);
+	if (ret < 0) {
+		DEBUG("failed writing response to metadata server Q file\n");
+	}
+	DEBUG("sent response to metadata server Q file\n");
+	delete_file_fd_node(Q_local_file_fd);
+	printf("TRIED TO DELETE FILE_FD_NODE \n\n\n\n");
+	replication_erasure_flag = 0;
+	}
+	
+
 
 	// TODO: should this just be pwrite?
 	ret = pwrite(local_fd, data_buf, request.count, request.offset);
+	printf("server pwrite - 6 \n");
 
 	// send the response with the number of bytes written to the METADATA SERVER
 	// so it can update metadata/coalesce multiple responses from multiple file servers
@@ -497,15 +748,18 @@ int handle_pwrite(struct ll_node* node, struct remote_request request) {
 	delete_file_fd_node(local_fd);
 	close(local_fd);
 	DEBUG("done handling pwrite\n");
+	printf("server pwrite - 7 \n");
 	return 0;
 }
 
 int handle_pread(struct ll_node* node, struct remote_request request) {
+	printf("server pread - 1 \n");
 	char *data_buf;
 	int ret, local_fd, remote_fd;
 	struct ll_node *cur;
 	struct remote_response response;
 	DEBUG("handle pread\n");
+	printf("server pread - 2 \n");
 
 	// find the local fd to write to
 	remote_fd = request.fd;
@@ -523,12 +777,14 @@ int handle_pread(struct ll_node* node, struct remote_request request) {
 	}
 
 	// read the contents of the file and send them back to the client
+	printf("server pread - 3 \n");
 
 	data_buf = malloc(request.count);
 	if (data_buf == NULL) {
 		perror("malloc");
 		return -1;
 	}
+	printf("server pread - 4 \n");
 	DEBUG("reading %d bytes from fd %d\n", request.count, local_fd);
 	ret = pread(local_fd, data_buf, request.count, request.offset);
 	DEBUG("read %d bytes\n", ret);
@@ -536,12 +792,14 @@ int handle_pread(struct ll_node* node, struct remote_request request) {
 	response.type = PREAD;
 	response.fd = request.fd;
 	response.return_value = ret;
+	printf("server pread - 5 \n");
 
 	DEBUG("sending response to client\n");
 	ret = write(node->fd, &response, sizeof(response));
 	if (ret < 0) {
 		DEBUG("failed writing response to client\n");
 	}
+	printf("server pread - 6 \n");
 
 	DEBUG("sending data to client\n");
 	ret = write(node->fd, data_buf, ret);
@@ -549,11 +807,35 @@ int handle_pread(struct ll_node* node, struct remote_request request) {
 		DEBUG("failed writing data to client\n");
 	}
 	DEBUG("sent response to client\n");
+	printf("server pread - 7 \n");
 
 	// TODO: keep the file open for longer in case we want to read/write to it again soon
 	delete_file_fd_node(local_fd);
 	close(local_fd);
 	DEBUG("done handling pread\n");
+	printf("server pread - 8 \n");
 
 	return 0;
+}
+int XOR_Decode(int x, int y)
+{
+    while (y != 0)
+    {
+        int borrow = (~x) & y;
+        x = x ^ y;
+        y = borrow << 1;
+    }
+	printf("\nXor decode = %d\n",x);
+    return x;
+}
+int XOR_Encode(int x, int y)
+{
+    while (y != 0)
+    {
+        unsigned carry = x & y;
+        x = x ^ y;
+        y = carry << 1;
+    }
+	printf("\nXor encode = %d\n",x);
+    return x;
 }
