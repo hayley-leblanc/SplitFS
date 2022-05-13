@@ -779,7 +779,7 @@ int handle_pwrite(struct ll_node* node, struct remote_request request) {
 		delete_file_fd_node(Q_local_file_fd);
 		// replication_erasure_flag = 0;
 
-		DEBUG("Done with replication!\n");
+		DEBUG("Done with erasure coding!!\n");
 
 	}
 
