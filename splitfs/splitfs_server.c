@@ -486,11 +486,11 @@ int handle_pwrite(struct ll_node* node, struct remote_request request) {
 		return ret;
 	}
 
-	printf("trying out replication - saamaja %s \n\n\n\n", request.file_path);
-	srand(time(0));
-	int replication_erasure_flag = rand();
 	
-	if(replication_erasure_flag % 2 == 0)
+	int do_erasure_coding=0;
+	int do_replication=0;
+
+	if(do_replication)
 	{
 		//replication starts here
 		//file 1
@@ -580,7 +580,7 @@ int handle_pwrite(struct ll_node* node, struct remote_request request) {
 		// replication_erasure_flag = 1;
 	}
 	
-	else
+	if(do_erasure_coding)
 	{
 		//Erasure coding starts here
 		char *first_file, *second_file, *P_file,*Q_file;
