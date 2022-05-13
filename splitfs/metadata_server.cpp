@@ -19,34 +19,45 @@
 
 using namespace std;
 
+int pick_fileserver;
+
 struct lockStructure
 {
     char *lock_path;
     pthread_mutex_t *sync_lock;
+    int read;
 };
 
 
-void release_lock(zhandle_t *zh, char *lock_path);
+int isWriteLock(char *full_node_path);
 
-void acquire_lock(zhandle_t *zh, char *lock_path);
-
-int can_acquire_lock(zhandle_t *zh, char *lock_path, pthread_mutex_t *sync_lock);
+void create_parent_nodes(char* full_filepath);
 
 void exists_watcher(zhandle_t *zh, int type, int state, const char *path, void *watcherCtx);
 
-// stat completion function
-void stat_completion(int rc, const struct Stat *stat, 
-                     const void *data) { }
+char* getSpecificPath(char* lock_path, int read);
 
-void void_completion(int rc, const void *data) { }
+char* get_filename(char *filepath);
 
-void strings_completion(int rc, const struct String_vector *strings, const void *data) { }
+char *get_parent_path(char *full_path);
+
+int can_acquire_write_lock(zhandle_t *zh, char *lock_node_fullpath, pthread_mutex_t *sync_lock);
+
+int can_acquire_read_lock(zhandle_t *zh, char *lock_node_fullpath, pthread_mutex_t *sync_lock);
+
+int can_acquire_lock(zhandle_t *zh, char *lock_node_fullpath, pthread_mutex_t *sync_lock, int read);
+
+char* acquire_lock(zhandle_t *zh, char *full_filepath, int read);
+
+void release_lock(zhandle_t *zh, char *lock_path_);
+
 
 // watcher callback function
 void watcher(zhandle_t *zzh, int type, int state, const char *path,
              void *watcherCtx) {}
 
 int main() {
+    pick_fileserver=0;
     int ret;
     struct config_options conf_opts;
     char addr_buf[64];
@@ -559,14 +570,14 @@ int read_from_client(int client_fd, struct config_options *conf_opts) {
 // on the metadata server, so the file is just created locally 
 // TODO: LOCKING!!
 int manage_create(int client_fd, struct remote_request *request, struct remote_response &response) {
-    acquire_lock(zh, request->file_path);
+    char* lock_node = acquire_lock(zh, request->file_path, 1);
     
     int fd = open(request->file_path, request->flags, request->mode);
     printf("created file on metadata server with fd %d\n", fd);
     strcpy(fd_to_name[fd], request->file_path);
     fd_to_client[fd] = client_fd;
-
-    release_lock(zh, request->file_path);
+    
+    release_lock(zh, lock_node);
     
     response.type = CREATE;
     response.fd = fd;
@@ -577,14 +588,16 @@ int manage_create(int client_fd, struct remote_request *request, struct remote_r
 
 // TODO: locking
 int manage_open(int client_fd, struct remote_request *request, struct remote_response &response) {
-    acquire_lock(zh, request->file_path);
+    char* lock_node = acquire_lock(zh, request->file_path, 1);
+    
     int fd = open(request->file_path, request->flags, request->mode);
     printf("opened file on metadata server with fd %d\n", fd);
+    
     
     strcpy(fd_to_name[fd], request->file_path);
     fd_to_client[fd] = client_fd;
 
-    release_lock(zh, request->file_path);
+    release_lock(zh, lock_node);
     
     response.type = OPEN;
     response.fd = fd;
@@ -596,8 +609,12 @@ int manage_open(int client_fd, struct remote_request *request, struct remote_res
 
 // TODO: locking
 int manage_close(int client_fd, struct remote_request *request, struct remote_response &response) {
+    char* lock_node = acquire_lock(zh, fd_to_name[request->fd], 1);
+    
     printf("closing file descriptor %d\n", request->fd);
     int ret = close(request->fd);
+    
+    release_lock(zh, lock_node);
     printf("closed file\n");
     fd_to_name.erase(request->fd);
     fd_to_client.erase(request->fd);
@@ -622,8 +639,9 @@ int manage_pwrite(int client_fd, struct config_options *conf_opts, struct remote
     
     printf("client wants to write %d bytes to offset %d\n", request->count, request->offset);
     
-    acquire_lock(zh, fd_to_name[request->fd]);
-
+    printf("Client wants to write to %s.\n", fd_to_name[request->fd]);
+    char* lock_node = acquire_lock(zh, fd_to_name[request->fd], 0);
+    
     bytes_read = pread(request->fd, &fm, sizeof(fm), 0);
     if (bytes_read < sizeof(fm)) {
         perror("pread");
@@ -676,7 +694,7 @@ int manage_pwrite(int client_fd, struct config_options *conf_opts, struct remote
     ret = pwrite(request->fd, &input, request->count, request->offset);
     printf("wrote %d bytes\n", ret);
 
-    release_lock(zh, fd_to_name[request->fd]);
+    release_lock(zh, lock_node);
 
     response.type = PWRITE;
     response.fd = request->fd;
@@ -697,6 +715,8 @@ int manage_pread(int client_fd, struct config_options *conf_opts, struct remote_
     // the file lives, if it has content anywhere
     // the client-provided fd is the same one we use to read the file
 
+    char* lock_node = acquire_lock(zh, fd_to_name[request->fd], 1);
+    
     bytes_read = pread(request->fd, &fm, sizeof(fm), 0);
     if (bytes_read < sizeof(fm)) {
         perror("pread");
@@ -755,6 +775,9 @@ int manage_pread(int client_fd, struct config_options *conf_opts, struct remote_
         perror("write");
         return ret;
     }
+
+    release_lock(zh, lock_node);
+
     return 0;
 }
 
@@ -767,28 +790,41 @@ struct sockaddr_in* choose_fileserver(int *fd) {
         printf("No file servers are connected\n");
         return NULL;
     }
-    *fd = server_fd_vec[0];
+    *fd = server_fd_vec[pick_fileserver % server_fd_vec.size()];
     sa = &(fd_to_server_ip[*fd]);
     printf("sa: %p\n", sa);
     return sa;
 }
 
-void create_parent_nodes(char* lock_path)
+int isWriteLock(char *lock_path)
+{
+    if(lock_path[0]=='w' && lock_path[1]=='r' && lock_path[2]=='i' && lock_path[3]=='t' && lock_path[4]=='e')
+        return 1;
+    return 0;
+}
+
+void create_parent_nodes(char* full_filepath)
 {
     int ret;
     char buffer[500];
-    for(int i=1; i<strlen(lock_path); i++)
+
+    char full_node_path[100] = "/_locknode";
+
+    strcat(full_node_path, full_filepath);
+
+    for(int i=1; i<strlen(full_node_path); i++)
     {
-        if(lock_path[i]=='/')
+        if(full_node_path[i]=='/')
         {
             // printf("%d\n", i);
             char tmp[500];
-            strncpy(tmp, lock_path, i);
+            strncpy(tmp, full_node_path, i);
             tmp[i]='\0';
             ret = zoo_create(zh, tmp, NULL, -1, &ZOO_OPEN_ACL_UNSAFE, ZOO_PERSISTENT, buffer, sizeof(buffer));
             printf("Creating path %s, return code %d\n", tmp, ret);
         }
     }
+    printf("Done creating parent nodes.\n");
 }
 
 // watcher function that processes when a node is cleared
@@ -800,120 +836,229 @@ void exists_watcher(zhandle_t *zh, int type, int state, const char *path, void *
         struct lockStructure *watcher_context;
         watcher_context = (struct lockStructure *)(watcherCtx);
 
-        if(can_acquire_lock(zh, watcher_context->lock_path, watcher_context->sync_lock))
-            acquire_lock(zh, watcher_context->lock_path);
+        if(can_acquire_lock(zh, watcher_context->lock_path, watcher_context->sync_lock, watcher_context->read))
+            pthread_mutex_unlock(watcher_context->sync_lock);
     }
 }
 
-int can_acquire_lock(zhandle_t *zh, char *lock_path_, pthread_mutex_t *sync_lock)
+char* getSpecificPath(char* lock_path, int read)
 {
-    struct String_vector strs;
-
-    char *root_lock_path = "/_locknode";
-
-    char lock_path[100];
-    lock_path[0] = '\0';
-    strcat(lock_path, root_lock_path);
-    strcat(lock_path, lock_path_);
-
-    char last_parent[500];
-
+    printf("In gsp for: %s\n", lock_path);
+    char *new_path = (char*)(malloc(2*strlen(lock_path)*sizeof(char)));
+    
     int i;
-
     for(i=strlen(lock_path)-1; i>=0; i--)
         if(lock_path[i]=='/')
             break;
 
-    strncpy(last_parent, lock_path, i);
+    char parent_path[100];
+    strncpy(parent_path, lock_path, i);
+    parent_path[i]='\0';
 
-    int chil = zoo_get_children(zh, last_parent, 0, &strs);
+    if(read)
+        strcat(parent_path, "/read-");
+    else
+        strcat(parent_path, "/write-");
 
-    printf("Trying to see if lock for %s can be acquired.\n", lock_path);
+    printf("Added rw\n");
+    
+    char *filename = get_filename(lock_path);
+
+    strcat(parent_path, filename);
+
+    strcpy(new_path, "/_locknode");
+    strcat(new_path, parent_path);
+    
+    return new_path;
+}
+
+char* get_filename(char *filepath)
+{
+    char *filename = (char*)(malloc(strlen(filepath)*sizeof(char)));
+
+    int i;
+    for(i=strlen(filepath); i>=0; i--)
+        if(filepath[i]=='/')
+            break;
+    strncpy(filename, filepath+i+1, strlen(filepath)-i);
+    printf("File name: %s\n", filename);
+    return filename;
+}
+
+char *get_parent_path(char *full_path)
+{
+    char *parent_path = (char *)(malloc(5*sizeof(full_path)));
+
+    int i;
+    for(i=strlen(full_path); i>=0; i--)
+        if(full_path[i]=='/')
+            break;
+
+    strncpy(parent_path, full_path, i);
+    parent_path[i]='\0';
+    return parent_path;
+}
+
+int can_acquire_write_lock(zhandle_t *zh, char *lock_node_fullpath, pthread_mutex_t *sync_lock)
+{
+    struct String_vector strs;
+
+    printf("in can can_acquire_write_lock, lock_node_fullpath: %s\n", lock_node_fullpath);
+    
+    char *parent_path = get_parent_path(lock_node_fullpath);
+
+    printf("Parent path: %s\n", parent_path);
+
+    int chil = zoo_get_children(zh, parent_path, 0, &strs);
+
+    char *lock_filepath = get_filename(lock_node_fullpath)+6;
+
+    printf("Parent %s has %d nodes:\n", parent_path, strs.count);
+
+    for(int i=0; i<strs.count; i++)
+        printf("%s\n", strs.data[i]);
 
     for(int i=0; i<strs.count; i++)
     {
-        char child_path[100];
-        child_path[0] = '\0';
-        strcat(child_path, "/_locknode/");
-        strcat(child_path, strs.data[i]);
+        char *cmp_filepath;
+        if(isWriteLock(strs.data[i]))
+            cmp_filepath = strs.data[i]+6;
+        else
+            cmp_filepath = strs.data[i]+5;
 
-        printf("Comparing child_path %s with lock_path %s: %d\n", child_path, lock_path, strcmp(child_path, lock_path));
-        if(strcmp(child_path, lock_path) < 0)
+        printf("Comparing %s with %s : %d\n", cmp_filepath, lock_filepath, strcmp(cmp_filepath, lock_filepath));
+        if(strcmp(cmp_filepath, lock_filepath) < 0)
         {
             struct lockStructure watcher_context;
-            watcher_context.lock_path = lock_path;
+            watcher_context.lock_path = lock_node_fullpath;
             watcher_context.sync_lock = sync_lock;
+            watcher_context.read = 0;
 
             void *watcherCtx = (void *)(&watcher_context); 
 
+            char child_path[100];
+
+            strcpy(child_path, parent_path);
+            strcat(child_path, "/");
+            strcat(child_path, strs.data[i]);
             printf("Setting watch on: %s", child_path);
             int ret = zoo_wexists(zh, child_path, exists_watcher, watcherCtx, NULL);
             return 0;
         }
     }
     pthread_mutex_unlock(sync_lock);
-    printf("Can acquire lock for %s\n", lock_path);
-
+    printf("Can acquire lock.\n");
     return 1;
 }
 
-void acquire_lock(zhandle_t *zh, char *lock_path_)
+
+int can_acquire_read_lock(zhandle_t *zh, char *lock_node_fullpath, pthread_mutex_t *sync_lock)
 {
-    sleep(5);
-    printf("%s wants to acquire lock.\n", lock_path_);
+    printf("In can_acquire_read_lock\n");
+    struct String_vector strs;
+
+    char *parent_path = get_parent_path(lock_node_fullpath);
+    printf("parent_path: %s\n", parent_path);
+    
+    int chil = zoo_get_children(zh, parent_path, 0, &strs);
+
+    char *lock_filepath = get_filename(lock_node_fullpath)+5;
+
+    printf("lock_filepath: %s\n", lock_filepath);
+    for(int i=0; i<strs.count; i++)
+    {
+        if(isWriteLock(strs.data[i]))
+        {
+            char *cmp_filepath = strs.data[i]+6;
+            if(strcmp(cmp_filepath, lock_filepath) < 0)
+            {
+                struct lockStructure watcher_context;
+                watcher_context.lock_path = lock_node_fullpath;
+                watcher_context.sync_lock = sync_lock;
+                watcher_context.read = 1;
+
+                void *watcherCtx = (void *)(&watcher_context); 
+
+                char child_path[100];
+
+                strcpy(child_path, parent_path);
+                strcat(child_path, "/");
+                strcat(child_path, strs.data[i]);
+                printf("Setting watch on: %s", child_path);
+                int ret = zoo_wexists(zh, child_path, exists_watcher, watcherCtx, NULL);
+                return 0;
+            }
+        }
+    }
+
+    pthread_mutex_unlock(sync_lock);
+
+    printf("Can acquire lock\n");
+    return 1;
+}
+
+int can_acquire_lock(zhandle_t *zh, char *lock_node_fullpath, pthread_mutex_t *sync_lock, int read)
+{
+    if(!read)
+        return can_acquire_write_lock(zh, lock_node_fullpath, sync_lock);
+    return can_acquire_read_lock(zh, lock_node_fullpath, sync_lock);
+}
+
+char* acquire_lock(zhandle_t *zh, char *full_filepath, int read)
+{
+    // sleep(5);
+    printf("%s wants to acquire lock.\n", full_filepath);
     
     pthread_mutex_t sync_lock;
     pthread_mutex_init(&sync_lock, NULL);
 
     pthread_mutex_lock(&sync_lock);
 
-    char *root_lock_path = "/_locknode";
+    char *filename = get_filename(full_filepath);
 
-    char lock_path[100];
-    lock_path[0] = '\0';
-    strcat(lock_path, root_lock_path);
-    strcat(lock_path, lock_path_);
+    create_parent_nodes(full_filepath);
+
+    char *lock_node_fullpath = getSpecificPath(full_filepath, read);
+
+    printf("lock_node_fullpath: %s\n", lock_node_fullpath);
+    // char *lock_node_created_path = (char*)(malloc(500));
+    
+    char lock_node_created_path_[500];
 
     int ret;
-    char buffer[512];
 
-    if(can_acquire_lock(zh, lock_path_, &sync_lock) && pthread_mutex_trylock(&sync_lock)==0)
+    ret = zoo_create(zh, lock_node_fullpath, NULL, -1, &ZOO_OPEN_ACL_UNSAFE, ZOO_EPHEMERAL_SEQUENTIAL, lock_node_created_path_, sizeof(lock_node_created_path_));
+    if(ret!=ZOK)
+        printf("Error when creating locknode for %s: %d\n", lock_node_fullpath, ret);
+    
+    char *lock_node_created_path = (char*)(malloc(sizeof(lock_node_created_path_)));
+    strcpy(lock_node_created_path, lock_node_created_path_);
+
+    printf("Created node: %s\n", lock_node_created_path);
+    
+    
+    if(can_acquire_lock(zh, lock_node_created_path, &sync_lock, read) && pthread_mutex_trylock(&sync_lock)==0)
     {
-        create_parent_nodes(lock_path);
-        ret = zoo_create(zh, lock_path, NULL, -1, &ZOO_OPEN_ACL_UNSAFE, ZOO_EPHEMERAL, buffer, sizeof(buffer));
-        if(ret!=ZOK)
-            printf("Error when creating locknode for %s: %d\n", lock_path, ret);
-
-        printf("in loop Acquired lock for %s\n", lock_path);
+        printf("in loop Acquired lock for %s\n", lock_node_created_path);
         pthread_mutex_destroy(&sync_lock);
-        return;
+        return lock_node_created_path;
     }
     else
     {
         while(pthread_mutex_trylock(&sync_lock)!=0);
-        create_parent_nodes(lock_path);
-        ret = zoo_create(zh, lock_path, NULL, -1, &ZOO_OPEN_ACL_UNSAFE, ZOO_EPHEMERAL, buffer, sizeof(buffer));
-        if(ret!=ZOK)
-            printf("Error when creating locknode for %s: %d\n", lock_path, ret);
-
         pthread_mutex_destroy(&sync_lock);
-        printf("outside loop Acquired lock for %s\n", lock_path);
-        return;
+        printf("outside loop Acquired lock for %s\n", lock_node_created_path);
+        return lock_node_created_path;
     }
 }
 
-void release_lock(zhandle_t *zh, char *lock_path_)
+void release_lock(zhandle_t *zh, char *lock_node_created_path)
 {      
-    sleep(5);
-    char *root_lock_path = "/_locknode";
-
-    char lock_path[100];
-    lock_path[0] = '\0';
-    strcat(lock_path, root_lock_path);
-    strcat(lock_path, lock_path_);
-
-    printf("%s releasing lock.\n", lock_path);
-    int ret = zoo_delete(zh, lock_path, -1);
+    printf("%s releasing lock.\n", lock_node_created_path);
+    // sleep(5);
+    int ret = zoo_delete(zh, lock_node_created_path, -1);
+    if(ret!=ZOK)
+        printf("Error releasing lock %s.\n", lock_node_created_path);
     return;
 }
 
