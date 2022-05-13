@@ -32,7 +32,7 @@ pthread_mutex_t fdset_lock;
 fd_set fdset;
 int connected_peers = 0;
 int metadata_server_fd;
-// char fd_to_name[2000][256];
+char fd_to_name[2000][256];
 
 void* server_thread_start(void *arg) {
     int accept_socket, sock_fd, ret;
@@ -347,8 +347,8 @@ int handle_metadata_notif(struct ll_node *node) {
 				return local_file_fd;
 			}
 
-			// strcpy(fd_to_name[local_file_fd],notif.file_path);
-			// printf("fd_to_name local file_path SAAMAJA %s\n\n\n\n", fd_to_name[local_file_fd]);
+			strcpy(fd_to_name[local_file_fd],notif.file_path);
+			printf("fd_to_name local file_path SAAMAJA %s\n\n\n\n", fd_to_name[local_file_fd]);
 			
 
 			// 2. save the file descriptor
