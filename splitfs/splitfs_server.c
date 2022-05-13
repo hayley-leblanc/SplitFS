@@ -347,8 +347,8 @@ int handle_metadata_notif(struct ll_node *node) {
 				return local_file_fd;
 			}
 
-			strcpy(fd_to_name[local_file_fd],notif.file_path);
-			printf("fd_to_name local file_path SAAMAJA %s\n\n\n\n", fd_to_name[local_file_fd]);
+			// strcpy(fd_to_name[local_file_fd],notif.file_path);
+			// printf("fd_to_name local file_path SAAMAJA %s\n\n\n\n", fd_to_name[local_file_fd]);
 			
 
 			// 2. save the file descriptor
