@@ -271,6 +271,7 @@ void* server_listen(void* args) {
 						case METADATA_FD:
 							DEBUG("metadata fd\n");
 							ret = handle_metadata_notif(cur);
+							printf("Got metadata notif with ret %d\n", ret);
 							if (ret < 0) {
 								DEBUG("failed reading metadata server notification");
 							}
@@ -285,6 +286,7 @@ void* server_listen(void* args) {
 					}
 					break;
 				}
+				printf("***cur->next\n");
 				cur = cur->next;
 			}
 			// pthread_mutex_unlock(&fdset_lock);
